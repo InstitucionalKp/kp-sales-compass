@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { PIPELINES } from "@/lib/mock-data";
+import { DEFAULT_SEARCH } from "@/lib/dashboard-search";
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
@@ -235,7 +236,7 @@ function SettingsPage() {
       <AppHeader
         right={
           <Button asChild variant="outline" size="sm" className="gap-2">
-            <Link to="/">
+            <Link to="/" search={DEFAULT_SEARCH}>
               <ArrowLeft className="size-3.5" /> Voltar ao dashboard
             </Link>
           </Button>
