@@ -19,6 +19,7 @@ import { AppHeader } from "@/components/dashboard/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +29,14 @@ import {
 import { cn } from "@/lib/utils";
 import { PIPELINES } from "@/lib/mock-data";
 import { DEFAULT_SEARCH } from "@/lib/dashboard-search";
-import { loadConfig, saveConfig, type ConfigKey } from "@/lib/app-config";
+import {
+  loadConfig,
+  saveConfig,
+  saveSecret,
+  secretIsSet,
+  type ConfigKey,
+  type SecretKey,
+} from "@/lib/app-config";
 import { runSync, type SyncSource } from "@/lib/sync";
 
 export const Route = createFileRoute("/configuracoes")({
@@ -170,13 +178,7 @@ function StatusPill({ status }: { status: Status }) {
   );
 }
 
-function credentialsPending() {
-  toast.info("Credenciais ainda não cadastradas", {
-    description: "Peça no chat para cadastrar os tokens do Meta Ads, GoHighLevel e Google Sheets como secrets.",
-  });
-}
-
-async function persist(key: ConfigKey, value: Record<string, unknown>, label: string) {
+async function persist(key: ConfigKey, value: Record<string, unknown> | unknown[], label: string) {
   try {
     await saveConfig(key, value);
     toast.success(`${label} salvo`, { description: "Configuração gravada no banco." });
@@ -185,6 +187,60 @@ async function persist(key: ConfigKey, value: Record<string, unknown>, label: st
       description: e instanceof Error ? e.message : "Erro desconhecido",
     });
   }
+}
+
+async function persistSecret(key: SecretKey, value: string, label: string) {
+  try {
+    await saveSecret(key, value);
+    toast.success(`${label} salvo`, { description: "Guardado com segurança — não volta para a tela." });
+  } catch (e) {
+    toast.error("Não foi possível salvar", {
+      description: e instanceof Error ? e.message : "Erro desconhecido",
+    });
+  }
+}
+
+function SecretInput({
+  label,
+  isSet,
+  onSave,
+}: {
+  label: string;
+  isSet: boolean;
+  onSave: (value: string) => Promise<void>;
+}) {
+  const [val, setVal] = useState("");
+  const [saving, setSaving] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <Label className="flex items-center gap-2 text-xs">
+        {label}
+        {isSet ? <span className="text-success">✓ salvo</span> : null}
+      </Label>
+      <div className="flex gap-2">
+        <Input
+          type="password"
+          autoComplete="off"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={isSet ? "•••••••••• (cole um novo para trocar)" : "Cole o token"}
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!val || saving}
+          onClick={async () => {
+            setSaving(true);
+            await onSave(val);
+            setSaving(false);
+            setVal("");
+          }}
+        >
+          Salvar
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function IntegrationCard({
@@ -199,14 +255,13 @@ function IntegrationCard({
   icon: typeof Megaphone;
   status: Status;
   lastSync: string;
-  syncSource?: SyncSource;
+  syncSource: SyncSource;
   children: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [running, setRunning] = useState(false);
 
   const onSyncNow = async () => {
-    if (!syncSource) return credentialsPending();
     setRunning(true);
     const r = await runSync(syncSource);
     setRunning(false);
@@ -256,18 +311,27 @@ function SettingsPage() {
     spreadsheetId: "1esmBP_vybIjhh2aw7miaS-oZMp9pDeroAUhYFaiTs9c",
     gid: "220089555",
   });
+  const [metaAccounts, setMetaAccounts] = useState("");
+  const [metaTokenSet, setMetaTokenSet] = useState(false);
+  const [ghlLocation, setGhlLocation] = useState("");
+  const [ghlTokenSet, setGhlTokenSet] = useState(false);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const [src, cols, sales, sources, savedGoals] = await Promise.all([
-          loadConfig<{ spreadsheetId: string; gid: string }>("sheet_source"),
-          loadConfig<Record<string, string>>("sheet_column_map"),
-          loadConfig<{ pipeline: string; stages: Record<string, string> }>("ghl_sale_stages"),
-          loadConfig<{ Leads: string; MQL: string }>("kpi_sources"),
-          loadConfig<{ mql: string; cpmql: string; investimento: string }>("goals"),
-        ]);
+        const [src, cols, sales, sources, savedGoals, accounts, ghlLoc, metaSet, ghlSet] =
+          await Promise.all([
+            loadConfig<{ spreadsheetId: string; gid: string }>("sheet_source"),
+            loadConfig<Record<string, string>>("sheet_column_map"),
+            loadConfig<{ pipeline: string; stages: Record<string, string> }>("ghl_sale_stages"),
+            loadConfig<{ Leads: string; MQL: string }>("kpi_sources"),
+            loadConfig<{ mql: string; cpmql: string; investimento: string }>("goals"),
+            loadConfig<string[]>("meta_accounts"),
+            loadConfig<{ id: string }>("ghl_location_id"),
+            secretIsSet("meta_access_token").catch(() => false),
+            secretIsSet("ghl_access_token").catch(() => false),
+          ]);
         if (!active) return;
         if (src) setSheetSrc((s) => ({ ...s, ...src }));
         if (cols) setColMap((m) => ({ ...m, ...cols }));
@@ -275,6 +339,10 @@ function SettingsPage() {
         if (sales?.pipeline) setPipeline(sales.pipeline);
         if (sources) setKpiSources((s) => ({ ...s, ...sources }));
         if (savedGoals) setGoals((g) => ({ ...g, ...savedGoals }));
+        if (Array.isArray(accounts)) setMetaAccounts(accounts.join("\n"));
+        if (ghlLoc?.id) setGhlLocation(ghlLoc.id);
+        setMetaTokenSet(metaSet);
+        setGhlTokenSet(ghlSet);
       } catch {
         /* mantém os valores padrão */
       }
@@ -283,6 +351,13 @@ function SettingsPage() {
       active = false;
     };
   }, []);
+
+  const parseAccounts = (raw: string) =>
+    raw
+      .split(/[\n,]+/)
+      .map((a) => a.trim())
+      .filter(Boolean)
+      .map((a) => (a.startsWith("act_") ? a : `act_${a}`));
 
   return (
     <div className="min-h-screen">
@@ -359,47 +434,75 @@ function SettingsPage() {
               <IntegrationCard
                 name="Meta Ads"
                 icon={Megaphone}
-                status="desconectado"
+                status={metaTokenSet ? "conectado" : "desconectado"}
                 lastSync="—"
                 syncSource="meta"
               >
-                <p className="text-xs text-muted-foreground">
-                  Cadastre no <strong>Lovable Cloud → Secrets</strong> e depois use "Sincronizar agora":
-                </p>
-                <ul className="space-y-1 text-[11px] text-muted-foreground">
-                  <li>
-                    <code className="text-foreground">META_ACCESS_TOKEN</code> — token de longa duração
-                    (permissão <em>ads_read</em>)
-                  </li>
-                  <li>
-                    <code className="text-foreground">META_AD_ACCOUNT_IDS</code> — ex:{" "}
-                    <code>act_893917593787021</code> (várias separadas por vírgula)
-                  </li>
-                </ul>
+                <SecretInput
+                  label="Access Token (longa duração, permissão ads_read)"
+                  isSet={metaTokenSet}
+                  onSave={async (v) => {
+                    await persistSecret("meta_access_token", v, "Token do Meta");
+                    setMetaTokenSet(true);
+                  }}
+                />
+                <div className="space-y-1.5">
+                  <Label className="text-xs">
+                    Contas de anúncio (uma por linha — só o número ou com act_)
+                  </Label>
+                  <Textarea
+                    rows={3}
+                    value={metaAccounts}
+                    onChange={(e) => setMetaAccounts(e.target.value)}
+                    placeholder={"893917593787021\nact_123456789"}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-brand-gradient text-primary-foreground"
+                  onClick={() =>
+                    persist("meta_accounts", parseAccounts(metaAccounts), "Contas do Meta")
+                  }
+                >
+                  Salvar contas
+                </Button>
                 <p className="text-[11px] text-muted-foreground">
-                  Opcionais: <code>META_DATE_PRESET</code> (default <code>last_30d</code>),{" "}
-                  <code>META_API_VERSION</code> (default <code>v23.0</code>).
+                  Depois clique em <strong>Sincronizar agora</strong> acima. Puxa os últimos 30 dias.
                 </p>
               </IntegrationCard>
 
               <IntegrationCard
                 name="GoHighLevel"
                 icon={Workflow}
-                status="desconectado"
+                status={ghlTokenSet ? "conectado" : "desconectado"}
                 lastSync="—"
                 syncSource="ghl"
               >
-                <p className="text-xs text-muted-foreground">
-                  Cadastre no <strong>Lovable Cloud → Secrets</strong> e depois use "Sincronizar agora":
-                </p>
-                <ul className="space-y-1 text-[11px] text-muted-foreground">
-                  <li>
-                    <code className="text-foreground">GHL_ACCESS_TOKEN</code> — Private Integration Token
-                  </li>
-                  <li>
-                    <code className="text-foreground">GHL_LOCATION_ID</code> — Location ID
-                  </li>
-                </ul>
+                <SecretInput
+                  label="Private Integration Token"
+                  isSet={ghlTokenSet}
+                  onSave={async (v) => {
+                    await persistSecret("ghl_access_token", v, "Token do GHL");
+                    setGhlTokenSet(true);
+                  }}
+                />
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Location ID</Label>
+                  <Input
+                    value={ghlLocation}
+                    onChange={(e) => setGhlLocation(e.target.value)}
+                    placeholder="ex: aBcD1234..."
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-brand-gradient text-primary-foreground"
+                  onClick={() =>
+                    persist("ghl_location_id", { id: ghlLocation.trim() }, "Location ID")
+                  }
+                >
+                  Salvar Location ID
+                </Button>
                 <p className="text-[11px] text-muted-foreground">
                   Usado só para marcar quais criativos geraram venda. Os stages que contam como venda
                   ficam na aba "Vendas (GHL)".

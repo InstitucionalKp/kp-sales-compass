@@ -170,12 +170,37 @@ export type Database = {
         }
         Relationships: []
       }
+      secret_config: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      set_secret: {
+        Args: { secret_key: string; secret_value: string }
+        Returns: undefined
+      }
+      secret_is_set: {
+        Args: { secret_key: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

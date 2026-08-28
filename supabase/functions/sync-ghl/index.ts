@@ -38,11 +38,26 @@ Deno.serve(async (req: Request) => {
   });
 
   try {
-    const token = Deno.env.get("GHL_ACCESS_TOKEN");
-    const locationId = Deno.env.get("GHL_LOCATION_ID");
+    const tokenRow = await supabase
+      .from("secret_config")
+      .select("value")
+      .eq("key", "ghl_access_token")
+      .maybeSingle();
+    const token = tokenRow.data?.value || Deno.env.get("GHL_ACCESS_TOKEN");
+
+    const locRow = await supabase
+      .from("app_config")
+      .select("value")
+      .eq("key", "ghl_location_id")
+      .maybeSingle();
+    const locVal = locRow.data?.value as string | { id?: string } | null | undefined;
+    const locationId =
+      (typeof locVal === "string" ? locVal : locVal?.id) ||
+      Deno.env.get("GHL_LOCATION_ID");
+
     if (!token || !locationId) {
       throw new Error(
-        "GHL_ACCESS_TOKEN e/ou GHL_LOCATION_ID não configurados. Cadastre como secrets no Lovable Cloud.",
+        "Token do GHL e/ou Location ID não configurados. Preencha na tela de Configurações → GoHighLevel.",
       );
     }
 

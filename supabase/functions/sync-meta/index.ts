@@ -142,11 +142,28 @@ Deno.serve(async (req: Request) => {
   const debug: Record<string, unknown> = { version, datePreset };
 
   try {
-    const token = Deno.env.get("META_ACCESS_TOKEN");
-    const accountsRaw = Deno.env.get("META_AD_ACCOUNT_IDS");
+    // token: secret_config.meta_access_token (setado pela tela) OU secret do Lovable
+    const tokenRow = await supabase
+      .from("secret_config")
+      .select("value")
+      .eq("key", "meta_access_token")
+      .maybeSingle();
+    const token = tokenRow.data?.value || Deno.env.get("META_ACCESS_TOKEN");
+
+    // contas: app_config.meta_accounts (array/string, setado pela tela) OU secret do Lovable
+    const accRow = await supabase
+      .from("app_config")
+      .select("value")
+      .eq("key", "meta_accounts")
+      .maybeSingle();
+    const accVal = accRow.data?.value as string[] | string | null | undefined;
+    const accountsRaw = Array.isArray(accVal)
+      ? accVal.join(",")
+      : (accVal || Deno.env.get("META_AD_ACCOUNT_IDS") || "");
+
     if (!token || !accountsRaw) {
       throw new Error(
-        "META_ACCESS_TOKEN e/ou META_AD_ACCOUNT_IDS não configurados. Cadastre como secrets no Lovable Cloud.",
+        "Token do Meta e/ou contas de anúncio não configurados. Preencha na tela de Configurações → Meta Ads.",
       );
     }
     const accounts = accountsRaw
