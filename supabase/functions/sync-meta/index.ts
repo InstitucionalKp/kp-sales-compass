@@ -98,10 +98,26 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    for (let i = 0; i < records.length; i += 500) {
+    // Agrega linhas com o mesmo id (mesma data/conta/campanha/conjunto/criativo),
+    // senão o upsert falha com "ON CONFLICT DO UPDATE cannot affect row a second time".
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const rec of records) {
+      const key = rec.id as string;
+      const prev = byId.get(key);
+      if (!prev) {
+        byId.set(key, rec);
+        continue;
+      }
+      for (const f of ["spend", "impressions", "clicks", "leads"]) {
+        prev[f] = Number(prev[f] ?? 0) + Number(rec[f] ?? 0);
+      }
+    }
+    const unique = [...byId.values()];
+
+    for (let i = 0; i < unique.length; i += 500) {
       const { error } = await supabase
         .from("meta_insights")
-        .upsert(records.slice(i, i + 500), { onConflict: "id" });
+        .upsert(unique.slice(i, i + 500), { onConflict: "id" });
       if (error) throw error;
     }
 
@@ -109,12 +125,18 @@ Deno.serve(async (req: Request) => {
       source: "meta",
       status: "ok",
       last_run_at: new Date().toISOString(),
-      rows: records.length,
+      rows: unique.length,
       message: null,
     });
-    return json({ ok: true, rows: records.length });
+    return json({ ok: true, rows: unique.length });
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    const err = e as { message?: string; details?: string; hint?: string; code?: string };
+    const message = e instanceof Error
+      ? e.message
+      : err && typeof err === "object"
+        ? [err.message, err.details, err.hint, err.code].filter(Boolean).join(" | ") ||
+          JSON.stringify(e)
+        : String(e);
     await supabase.from("sync_status").upsert({
       source: "meta",
       status: "error",
