@@ -73,25 +73,52 @@ const GHL_STAGES = [
 
 const VENDA_OPTIONS = ["Conta como venda", "Ignorar"];
 
+// Cabeçalhos reais detectados na planilha da conta.
 const SHEET_HEADERS = [
-  "Data",
-  "Nome",
-  "Canal",
-  "Criativo",
-  "Grade",
-  "MQL?",
-  "Observação",
+  "NOME",
+  "CONTATO",
+  "EMAIL",
+  "NOME DA EMPRESA",
+  "CARGO",
+  "STATUS DE REUNIÃO",
+  "MQL",
+  "QUALIFICAÇÃO",
+  "ORIGEM",
+  "CAMPANHA",
+  "CRIATIVO",
+  "CONJUNTO",
+  "DATA",
+  "HORA",
 ];
 
 const INTERNAL_FIELDS = [
   "Data",
+  "Hora",
   "Nome do Lead",
-  "Canal",
+  "Empresa",
+  "Origem",
+  "Campanha",
+  "Conjunto",
   "Criativo",
-  "Grade (A/B/C/D)",
-  "É MQL",
-  "Observação",
+  "Qualificação (A/B/C/D)",
+  "MQL (SIM/NÃO)",
+  "Status de Reunião",
 ];
+
+// Palpite inicial do mapeamento (nome interno -> cabeçalho da planilha).
+const DEFAULT_COL_MAP: Record<string, string> = {
+  Data: "DATA",
+  Hora: "HORA",
+  "Nome do Lead": "NOME",
+  Empresa: "NOME DA EMPRESA",
+  Origem: "ORIGEM",
+  Campanha: "CAMPANHA",
+  Conjunto: "CONJUNTO",
+  Criativo: "CRIATIVO",
+  "Qualificação (A/B/C/D)": "QUALIFICAÇÃO",
+  "MQL (SIM/NÃO)": "MQL",
+  "Status de Reunião": "STATUS DE REUNIÃO",
+};
 
 function Picker({
   value,
@@ -215,11 +242,11 @@ function SettingsPage() {
     Object.fromEntries(GHL_STAGES.map((s) => [s, s === "Ganho" ? "Conta como venda" : "Ignorar"])),
   );
   const [colMap, setColMap] = useState<Record<string, string>>(() =>
-    Object.fromEntries(INTERNAL_FIELDS.map((f, i) => [f, SHEET_HEADERS[i] ?? "—"])),
+    Object.fromEntries(INTERNAL_FIELDS.map((f) => [f, DEFAULT_COL_MAP[f] ?? "—"])),
   );
   const [kpiSources, setKpiSources] = useState({ Leads: "Planilha", MQL: "Planilha" });
   const [pipeline, setPipeline] = useState(PIPELINES[0]!);
-  const [goals, setGoals] = useState({ mql: "120", cpmql: "300", investimento: "20000" });
+  const [goals, setGoals] = useState({ mql: "70", cpmql: "300", investimento: "20000" });
 
   return (
     <div className="min-h-screen">
@@ -335,7 +362,8 @@ function SettingsPage() {
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                MQL é derivado da coluna Grade: leads A e B contam como MQL.
+                Total de MQL é derivado da coluna Qualificação: leads A e B contam como MQL
+                (a coluna MQL SIM/NÃO fica guardada, mas não entra no cálculo).
               </p>
               <Button className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
                 Salvar mapeamento

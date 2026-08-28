@@ -21,7 +21,7 @@ import { dateLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type Filters = {
-  channel: string;
+  campaign: string;
   from: string;
   to: string;
   preset: number | null;
@@ -43,14 +43,14 @@ function Select({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className="max-w-[280px] gap-2">
           <span className="text-muted-foreground">{label}:</span>
-          <span className="font-medium">{value === "todos" ? "Todos" : value}</span>
-          <ChevronDown className="size-3.5 opacity-60" />
+          <span className="truncate font-medium">{value === "todas" ? "Todas" : value}</span>
+          <ChevronDown className="size-3.5 shrink-0 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-        <DropdownMenuItem onSelect={() => onChange("todos")}>Todos</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onChange("todas")}>Todas</DropdownMenuItem>
         <DropdownMenuSeparator />
         {options.map((o) => (
           <DropdownMenuItem key={o} onSelect={() => onChange(o)}>
@@ -64,14 +64,14 @@ function Select({
 
 export function FilterBar({
   filters,
-  channels,
+  campaigns,
   syncing,
   onChange,
   onPreset,
   onSync,
 }: {
   filters: Filters;
-  channels: string[];
+  campaigns: string[];
   syncing: string | null;
   onChange: (patch: Partial<Filters>) => void;
   onPreset: (days: number) => void;
@@ -80,10 +80,10 @@ export function FilterBar({
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-3">
       <Select
-        label="Canal"
-        value={filters.channel}
-        options={channels}
-        onChange={(channel) => onChange({ channel })}
+        label="Campanha"
+        value={filters.campaign}
+        options={campaigns}
+        onChange={(campaign) => onChange({ campaign })}
       />
 
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">

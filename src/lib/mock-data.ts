@@ -1,8 +1,15 @@
 /**
  * Dados mock determinísticos (seed fixa) — evitam divergência entre SSR e cliente.
- * Serão substituídos pelas tabelas de cache do backend quando as integrações
- * (Google Sheets para leads/MQL, Meta Ads para investimento, GoHighLevel para
- * vendas) forem ligadas em Configurações.
+ *
+ * Modelo espelha a planilha do Google Sheets que vai integrar:
+ *   NOME · CONTATO · EMAIL · NOME DA EMPRESA · CARGO · STATUS DE REUNIÃO ·
+ *   MQL (SIM/NÃO) · QUALIFICAÇÃO (A/B/C/D) · ... · ORIGEM · CAMPANHA ·
+ *   CRIATIVO · CONJUNTO · DATA · HORA
+ *
+ * Regras da conta:
+ *   - MQL = leads com QUALIFICAÇÃO A ou B (a coluna MQL fica guardada em `mqlFlag`
+ *     mas não entra no cálculo).
+ *   - Investimento vem do Meta Ads; vendas vêm do GoHighLevel.
  */
 
 export type LeadGrade = "A" | "B" | "C" | "D";
@@ -11,35 +18,51 @@ export type Channel =
   | "Meta Ads"
   | "Google Ads"
   | "Instagram Orgânico"
-  | "TikTok Ads"
-  | "YouTube Ads";
+  | "TikTok Ads";
 
-export type Creative = {
-  id: string;
+export type CreativeMeta = {
   name: string;
+  campaign: string;
+  adset: string;
   channel: Channel;
-  /** Link para a demo do vídeo do criativo. */
+  /** Link para a demo do vídeo. Vazio = criativo sem vídeo (ex. link na bio). */
   videoUrl: string;
 };
 
 export type Lead = {
   id: string;
-  date: string; // YYYY-MM-DD
+  datetime: string; // ISO local "YYYY-MM-DDTHH:mm"
+  date: string; // "YYYY-MM-DD"
+  time: string; // "HH:mm"
   name: string;
+  company: string;
+  origin: string;
+  campaign: string;
+  adset: string;
+  creative: string;
   channel: Channel;
-  creativeId: string;
   grade: LeadGrade;
-  /** MQL = leads grade A ou B. */
+  /** MQL = grade A ou B. */
   isMql: boolean;
+  /** Valor bruto da coluna MQL da planilha (SIM/NÃO). Guardado, fora do cálculo. */
+  mqlFlag: boolean;
+  meetingStatus: string;
   /** Marcado quando o lead virou venda no GoHighLevel. */
   sold: boolean;
 };
 
 export type SpendRow = {
-  date: string; // YYYY-MM-DD
-  creativeId: string;
+  date: string;
+  creative: string;
+  campaign: string;
   channel: Channel;
   amount: number;
+};
+
+export const GOALS = {
+  mqlMensal: 70,
+  investimentoMensal: 20000,
+  cpmqlAlvo: 300,
 };
 
 export const CHANNELS: Channel[] = [
@@ -47,7 +70,6 @@ export const CHANNELS: Channel[] = [
   "Google Ads",
   "Instagram Orgânico",
   "TikTok Ads",
-  "YouTube Ads",
 ];
 
 /** Mantido para a aba "Vendas (GHL)" em Configurações. */
@@ -56,35 +78,93 @@ export const PIPELINES = ["Comercial Inbound", "Comercial Outbound"];
 const SAMPLE_VIDEO =
   "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
-export const CREATIVES: Creative[] = [
-  { id: "cr-01", name: "01 · Depoimento — Ana", channel: "Meta Ads", videoUrl: SAMPLE_VIDEO },
-  { id: "cr-02", name: "02 · VSL Método KP", channel: "Meta Ads", videoUrl: SAMPLE_VIDEO },
-  { id: "cr-03", name: "03 · Antes e Depois", channel: "Meta Ads", videoUrl: SAMPLE_VIDEO },
-  { id: "cr-04", name: "04 · Reels Bastidores", channel: "Instagram Orgânico", videoUrl: SAMPLE_VIDEO },
-  { id: "cr-05", name: "05 · Search — Palavra Marca", channel: "Google Ads", videoUrl: SAMPLE_VIDEO },
-  { id: "cr-06", name: "06 · Search — Concorrente", channel: "Google Ads", videoUrl: SAMPLE_VIDEO },
-  { id: "cr-07", name: "07 · TikTok — Trend de Áudio", channel: "TikTok Ads", videoUrl: SAMPLE_VIDEO },
-  { id: "cr-08", name: "08 · TikTok — POV Cliente", channel: "TikTok Ads", videoUrl: SAMPLE_VIDEO },
-  { id: "cr-09", name: "09 · YouTube — Case 90s", channel: "YouTube Ads", videoUrl: SAMPLE_VIDEO },
-  { id: "cr-10", name: "10 · Carrossel Prova Social", channel: "Meta Ads", videoUrl: SAMPLE_VIDEO },
+export const CREATIVES: CreativeMeta[] = [
+  {
+    name: "BIDCAP · AD · Nadiele",
+    campaign: "KP · BIDCAP · 1x1x1 · Nadiele",
+    adset: "BIDCAP · CJ · Nadiele",
+    channel: "Meta Ads",
+    videoUrl: SAMPLE_VIDEO,
+  },
+  {
+    name: "BIDCAP · AD · Depoimento",
+    campaign: "KP · BIDCAP · 1x1x1 · Nadiele",
+    adset: "BIDCAP · CJ · Nadiele",
+    channel: "Meta Ads",
+    videoUrl: SAMPLE_VIDEO,
+  },
+  {
+    name: "FORMSN · Nadiele",
+    campaign: "Nosso Público · Forms Nativo",
+    adset: "Instagram Feed",
+    channel: "Meta Ads",
+    videoUrl: SAMPLE_VIDEO,
+  },
+  {
+    name: "FORMSN · Prova Social",
+    campaign: "Nosso Público · Forms Nativo",
+    adset: "Instagram Feed",
+    channel: "Meta Ads",
+    videoUrl: SAMPLE_VIDEO,
+  },
+  {
+    name: "ADV+ · Antes e Depois",
+    campaign: "KP · Advantage+ · Abril",
+    adset: "Advantage+ Compras",
+    channel: "Meta Ads",
+    videoUrl: SAMPLE_VIDEO,
+  },
+  {
+    name: "ADV+ · VSL 90s",
+    campaign: "KP · Advantage+ · Abril",
+    adset: "Advantage+ Compras",
+    channel: "Meta Ads",
+    videoUrl: SAMPLE_VIDEO,
+  },
+  {
+    name: "Search · Marca",
+    campaign: "Google · Search Marca",
+    adset: "Palavra-chave Marca",
+    channel: "Google Ads",
+    videoUrl: "",
+  },
+  {
+    name: "link_in_bio",
+    campaign: "Instagram Orgânico",
+    adset: "Bio",
+    channel: "Instagram Orgânico",
+    videoUrl: "",
+  },
 ];
 
-export const CREATIVE_BY_ID: Record<string, Creative> = Object.fromEntries(
-  CREATIVES.map((c) => [c.id, c]),
+export const CREATIVE_BY_NAME: Record<string, CreativeMeta> = Object.fromEntries(
+  CREATIVES.map((c) => [c.name, c]),
 );
 
-/** Investimento diário médio por criativo (R$). 0 = canal orgânico, sem mídia. */
+export const CAMPAIGNS: string[] = [...new Set(CREATIVES.map((c) => c.campaign))];
+
+/** Investimento diário médio por criativo (R$). 0 = sem mídia (orgânico). */
 const CREATIVE_DAILY_SPEND: Record<string, number> = {
-  "cr-01": 90,
-  "cr-02": 130,
-  "cr-03": 80,
-  "cr-04": 0,
-  "cr-05": 70,
-  "cr-06": 50,
-  "cr-07": 60,
-  "cr-08": 70,
-  "cr-09": 110,
-  "cr-10": 85,
+  "BIDCAP · AD · Nadiele": 120,
+  "BIDCAP · AD · Depoimento": 90,
+  "FORMSN · Nadiele": 70,
+  "FORMSN · Prova Social": 60,
+  "ADV+ · Antes e Depois": 140,
+  "ADV+ · VSL 90s": 110,
+  "Search · Marca": 80,
+  link_in_bio: 0,
+};
+
+/** Peso relativo de volume de leads por criativo. */
+const CREATIVE_LEAD_WEIGHT: Record<string, number> = {
+  "BIDCAP · AD · Nadiele": 5,
+  "BIDCAP · AD · Depoimento": 3,
+  "FORMSN · Nadiele": 4,
+  "FORMSN · Prova Social": 2,
+  "ADV+ · Antes e Depois": 3,
+  "ADV+ · VSL 90s": 2,
+  "Search · Marca": 2,
+  link_in_bio: 1,
 };
 
 function mulberry32(seed: number) {
@@ -113,6 +193,10 @@ export const daysBetween = (a: string, b: string) =>
 
 export const isoAgo = isoMinusDays;
 
+export function daysInSpan(from: string, to: string) {
+  return Math.max(1, daysBetween(from, to) + 1);
+}
+
 const FIRST_NAMES = [
   "Ana", "Bruno", "Carla", "Diego", "Elaine", "Felipe", "Gabriela", "Hugo",
   "Isabela", "João", "Karina", "Lucas", "Marina", "Nícolas", "Olívia",
@@ -122,12 +206,16 @@ const LAST_NAMES = [
   "Silva", "Souza", "Oliveira", "Costa", "Pereira", "Almeida", "Nunes",
   "Rocha", "Dias", "Barbosa", "Cardoso", "Teixeira",
 ];
+const COMPANY_SUFFIX = ["Motos", "Veículos", "Auto Center", "Moto Peças", "Multimarcas", "Automóveis"];
 
-function mockName(rnd: () => number) {
-  return `${FIRST_NAMES[Math.floor(rnd() * FIRST_NAMES.length)]} ${
-    LAST_NAMES[Math.floor(rnd() * LAST_NAMES.length)]
-  }`;
+function pick<T>(arr: T[], rnd: () => number): T {
+  return arr[Math.floor(rnd() * arr.length)]!;
 }
+
+/** Lista de criativos ponderada por volume, para o sorteio dos leads. */
+const WEIGHTED_CREATIVES: CreativeMeta[] = CREATIVES.flatMap((c) =>
+  Array.from({ length: CREATIVE_LEAD_WEIGHT[c.name] ?? 1 }, () => c),
+);
 
 function buildSpend(): SpendRow[] {
   const rnd = mulberry32(88011);
@@ -135,12 +223,13 @@ function buildSpend(): SpendRow[] {
   for (let d = 89; d >= 0; d--) {
     const date = isoMinusDays(TODAY, d);
     for (const c of CREATIVES) {
-      const base = CREATIVE_DAILY_SPEND[c.id] ?? 0;
-      if (base === 0) continue; // canal orgânico não tem investimento
-      if (rnd() < 0.22) continue; // nem todo criativo roda todo dia
+      const base = CREATIVE_DAILY_SPEND[c.name] ?? 0;
+      if (base === 0) continue;
+      if (rnd() < 0.18) continue;
       rows.push({
         date,
-        creativeId: c.id,
+        creative: c.name,
+        campaign: c.campaign,
         channel: c.channel,
         amount: Math.round(base * (0.6 + rnd() * 0.9)),
       });
@@ -152,30 +241,48 @@ function buildSpend(): SpendRow[] {
 function buildLeads(): Lead[] {
   const rnd = mulberry32(20260827);
   const leads: Lead[] = [];
-  const total = 420;
+  const total = 460;
 
   for (let i = 0; i < total; i++) {
     const daysAgo = Math.floor(rnd() * 90);
     const date = isoMinusDays(TODAY, daysAgo);
-    const creative = CREATIVES[Math.floor(rnd() * CREATIVES.length)]!;
+    const hh = String(8 + Math.floor(rnd() * 14)).padStart(2, "0");
+    const mm = String(Math.floor(rnd() * 60)).padStart(2, "0");
+    const time = `${hh}:${mm}`;
+
+    const creative = pick(WEIGHTED_CREATIVES, rnd);
 
     const g = rnd();
-    const grade: LeadGrade = g < 0.18 ? "A" : g < 0.42 ? "B" : g < 0.72 ? "C" : "D";
+    const grade: LeadGrade = g < 0.16 ? "A" : g < 0.4 ? "B" : g < 0.72 ? "C" : "D";
     const isMql = grade === "A" || grade === "B";
-    const sold = isMql && daysAgo > 5 && rnd() < (grade === "A" ? 0.22 : 0.08);
+    // a coluna MQL da planilha é preenchida à mão — quase sempre bate com A/B,
+    // mas às vezes o time marca SIM num C.
+    const mqlFlag = isMql ? rnd() > 0.05 : rnd() < 0.06;
+    const sold = isMql && daysAgo > 5 && rnd() < (grade === "A" ? 0.2 : 0.07);
+    const meetingStatus = isMql
+      ? pick(["", "Agendado", "Realizado", "noshow", ""], rnd)
+      : "";
 
     leads.push({
       id: `lead-${i + 1}`,
+      datetime: `${date}T${time}`,
       date,
-      name: mockName(rnd),
+      time,
+      name: `${pick(FIRST_NAMES, rnd)} ${pick(LAST_NAMES, rnd)}`,
+      company: `${pick(LAST_NAMES, rnd)} ${pick(COMPANY_SUFFIX, rnd)}`,
+      origin: creative.channel === "Meta Ads" ? "facebookads" : creative.channel.toLowerCase(),
+      campaign: creative.campaign,
+      adset: creative.adset,
+      creative: creative.name,
       channel: creative.channel,
-      creativeId: creative.id,
       grade,
       isMql,
+      mqlFlag,
+      meetingStatus,
       sold,
     });
   }
-  return leads.sort((a, b) => (a.date < b.date ? -1 : 1));
+  return leads.sort((a, b) => (a.datetime < b.datetime ? -1 : 1));
 }
 
 export const MOCK_LEADS: Lead[] = buildLeads();
@@ -219,21 +326,23 @@ export function computeMetrics(leads: Lead[], spend: SpendRow[]): Metrics {
   };
 }
 
-export function filterLeads(opts: { from: string; to: string; channel: string }): Lead[] {
+type FilterOpts = { from: string; to: string; campaign: string };
+
+export function filterLeads(opts: FilterOpts): Lead[] {
   return MOCK_LEADS.filter(
     (l) =>
       l.date >= opts.from &&
       l.date <= opts.to &&
-      (opts.channel === "todos" || l.channel === opts.channel),
+      (opts.campaign === "todas" || l.campaign === opts.campaign),
   );
 }
 
-export function filterSpend(opts: { from: string; to: string; channel: string }): SpendRow[] {
+export function filterSpend(opts: FilterOpts): SpendRow[] {
   return MOCK_SPEND.filter(
     (r) =>
       r.date >= opts.from &&
       r.date <= opts.to &&
-      (opts.channel === "todos" || r.channel === opts.channel),
+      (opts.campaign === "todas" || r.campaign === opts.campaign),
   );
 }
 
@@ -277,7 +386,11 @@ function bucketKey(iso: string, gran: "dia" | "semana" | "mes") {
 }
 
 export type CreativeStats = {
-  creative: Creative;
+  name: string;
+  campaign: string;
+  adset: string;
+  channel: string;
+  videoUrl: string;
   leads: number;
   mqls: number;
   gradeA: number;
@@ -286,6 +399,7 @@ export type CreativeStats = {
   gradeD: number;
   mqlRate: number; // %
   investment: number;
+  cpl: number;
   cpmql: number;
   sold: boolean;
   leadList: Lead[];
@@ -294,35 +408,36 @@ export type CreativeStats = {
 export function creativeBreakdown(leads: Lead[], spend: SpendRow[]): CreativeStats[] {
   const spendByCreative = new Map<string, number>();
   for (const r of spend) {
-    spendByCreative.set(r.creativeId, (spendByCreative.get(r.creativeId) ?? 0) + r.amount);
+    spendByCreative.set(r.creative, (spendByCreative.get(r.creative) ?? 0) + r.amount);
   }
 
   const leadsByCreative = new Map<string, Lead[]>();
   for (const l of leads) {
-    const arr = leadsByCreative.get(l.creativeId) ?? [];
+    const arr = leadsByCreative.get(l.creative) ?? [];
     arr.push(l);
-    leadsByCreative.set(l.creativeId, arr);
+    leadsByCreative.set(l.creative, arr);
   }
 
-  const ids = new Set<string>([...leadsByCreative.keys(), ...spendByCreative.keys()]);
+  const names = new Set<string>([...leadsByCreative.keys(), ...spendByCreative.keys()]);
 
-  return [...ids]
-    .map((id) => {
-      const creative = CREATIVE_BY_ID[id] ?? {
-        id,
-        name: id,
-        channel: "Meta Ads" as Channel,
-        videoUrl: SAMPLE_VIDEO,
-      };
-      const list = (leadsByCreative.get(id) ?? []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  return [...names]
+    .map((name) => {
+      const meta = CREATIVE_BY_NAME[name];
+      const list = (leadsByCreative.get(name) ?? [])
+        .slice()
+        .sort((a, b) => (a.datetime < b.datetime ? 1 : -1));
       const gradeA = list.filter((l) => l.grade === "A").length;
       const gradeB = list.filter((l) => l.grade === "B").length;
       const gradeC = list.filter((l) => l.grade === "C").length;
       const gradeD = list.filter((l) => l.grade === "D").length;
       const mqls = gradeA + gradeB;
-      const investment = spendByCreative.get(id) ?? 0;
+      const investment = spendByCreative.get(name) ?? 0;
       return {
-        creative,
+        name,
+        campaign: meta?.campaign ?? "—",
+        adset: meta?.adset ?? "—",
+        channel: meta?.channel ?? "Meta Ads",
+        videoUrl: meta?.videoUrl ?? "",
         leads: list.length,
         mqls,
         gradeA,
@@ -331,6 +446,7 @@ export function creativeBreakdown(leads: Lead[], spend: SpendRow[]): CreativeSta
         gradeD,
         mqlRate: list.length === 0 ? 0 : (mqls / list.length) * 100,
         investment,
+        cpl: list.length === 0 ? 0 : investment / list.length,
         cpmql: mqls === 0 ? 0 : investment / mqls,
         sold: list.some((l) => l.sold),
         leadList: list,

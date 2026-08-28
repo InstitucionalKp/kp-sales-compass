@@ -3,7 +3,7 @@ import { TODAY, isoAgo } from "./mock-data";
 export type Granularity = "dia" | "semana" | "mes";
 
 export type DashboardSearch = {
-  canal: string;
+  campanha: string;
   de: string;
   ate: string;
   preset: number | null;
@@ -11,7 +11,7 @@ export type DashboardSearch = {
 };
 
 export const DEFAULT_SEARCH: DashboardSearch = {
-  canal: "todos",
+  campanha: "todas",
   de: isoAgo(TODAY, 29),
   ate: TODAY,
   preset: 30,

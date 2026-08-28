@@ -1,24 +1,27 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Flame, Info, Users, Wallet } from "lucide-react";
+import { Coins, Info, Target, Users, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { FilterBar } from "@/components/dashboard/FilterBar";
+import { GoalBar } from "@/components/dashboard/GoalBar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { RateCard } from "@/components/dashboard/RateCard";
 import { GradeBreakdownCard } from "@/components/dashboard/GradeBreakdownCard";
-import { CreativeTable } from "@/components/dashboard/CreativeTable";
+import { CreativeContribTable } from "@/components/dashboard/CreativeContribTable";
 import { OriginTable, type OriginRow } from "@/components/dashboard/OriginTable";
 import { EvolutionChart } from "@/components/dashboard/EvolutionChart";
 import type { Granularity } from "@/lib/dashboard-search";
-import { brl, num, pct } from "@/lib/format";
+import { brl, dateLabel, num, pct } from "@/lib/format";
 import {
-  CHANNELS,
+  CAMPAIGNS,
+  GOALS,
   TODAY,
   buildTimeSeries,
   channelBreakdown,
   computeMetrics,
   creativeBreakdown,
+  daysInSpan,
   filterLeads,
   filterSpend,
   isoAgo,
@@ -26,7 +29,7 @@ import {
 } from "@/lib/mock-data";
 
 type Search = {
-  canal: string;
+  campanha: string;
   de: string;
   ate: string;
   preset: number | null;
@@ -40,18 +43,18 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Dashboard de marketing da KP Assessoria: investimento em tráfego, leads, MQL, custo por MQL e desempenho por criativo.",
+          "Dashboard de marketing da KP Assessoria: meta de MQL, investimento em tráfego, CPL, CPMQL e desempenho por criativo.",
       },
       { property: "og:title", content: "Dashboard de Marketing | KP Assessoria" },
       {
         property: "og:description",
         content:
-          "Investimento em tráfego, leads e MQL da planilha, CPMQL e desempenho por criativo em tempo real.",
+          "Meta de MQL, investimento, CPL, CPMQL e os criativos que trazem leads e MQL — direto da planilha e do Meta Ads.",
       },
     ],
   }),
   validateSearch: (s: Record<string, unknown>): Search => ({
-    canal: typeof s["canal"] === "string" ? s["canal"] : "todos",
+    campanha: typeof s["campanha"] === "string" ? s["campanha"] : "todas",
     de: typeof s["de"] === "string" ? s["de"] : isoAgo(TODAY, 29),
     ate: typeof s["ate"] === "string" ? s["ate"] : TODAY,
     preset: s["preset"] === null || s["preset"] === undefined ? 30 : Number(s["preset"]) || null,
@@ -69,21 +72,21 @@ function Dashboard() {
     navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
 
   const leads = useMemo(
-    () => filterLeads({ from: search.de, to: search.ate, channel: search.canal }),
-    [search.de, search.ate, search.canal],
+    () => filterLeads({ from: search.de, to: search.ate, campaign: search.campanha }),
+    [search.de, search.ate, search.campanha],
   );
   const spend = useMemo(
-    () => filterSpend({ from: search.de, to: search.ate, channel: search.canal }),
-    [search.de, search.ate, search.canal],
+    () => filterSpend({ from: search.de, to: search.ate, campaign: search.campanha }),
+    [search.de, search.ate, search.campanha],
   );
 
   const prev = useMemo(() => {
     const r = shiftRange(search.de, search.ate);
     return {
-      leads: filterLeads({ ...r, channel: search.canal }),
-      spend: filterSpend({ ...r, channel: search.canal }),
+      leads: filterLeads({ ...r, campaign: search.campanha }),
+      spend: filterSpend({ ...r, campaign: search.campanha }),
     };
-  }, [search.de, search.ate, search.canal]);
+  }, [search.de, search.ate, search.campanha]);
 
   const m = useMemo(() => computeMetrics(leads, spend), [leads, spend]);
   const p = useMemo(() => computeMetrics(prev.leads, prev.spend), [prev]);
@@ -99,6 +102,14 @@ function Dashboard() {
     () => channelBreakdown(leads, spend).map((c) => ({ label: c.channel, qty: c.qty, cost: c.cost })),
     [leads, spend],
   );
+
+  const spanDays = daysInSpan(search.de, search.ate);
+  const periodLabel =
+    search.preset !== null
+      ? `${search.preset} dias`
+      : `${dateLabel(search.de)} – ${dateLabel(search.ate)}`;
+
+  const investPercent = (m.investment / GOALS.investimentoMensal) * 100;
 
   const handleSync = (source: "all" | "meta" | "ghl" | "sheets") => {
     setSyncing(source);
@@ -121,16 +132,16 @@ function Dashboard() {
       <AppHeader />
       <FilterBar
         filters={{
-          channel: search.canal,
+          campaign: search.campanha,
           from: search.de,
           to: search.ate,
           preset: search.preset,
         }}
-        channels={CHANNELS}
+        campaigns={CAMPAIGNS}
         syncing={syncing}
         onChange={(patch) =>
           setSearch({
-            ...(patch.channel !== undefined ? { canal: patch.channel } : {}),
+            ...(patch.campaign !== undefined ? { campanha: patch.campaign } : {}),
             ...(patch.from !== undefined ? { de: patch.from } : {}),
             ...(patch.to !== undefined ? { ate: patch.to } : {}),
             ...(patch.preset !== undefined ? { preset: patch.preset } : {}),
@@ -143,50 +154,65 @@ function Dashboard() {
       <main className="mx-auto flex max-w-[1600px] flex-col gap-4 p-4">
         <h1 className="sr-only">Dashboard de marketing KP Assessoria</h1>
 
+        <GoalBar
+          actual={m.mqls}
+          monthlyGoal={GOALS.mqlMensal}
+          spanDays={spanDays}
+          periodLabel={periodLabel}
+        />
+
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             icon={Wallet}
-            label="Investimento em Tráfego"
+            label="Meta de Investimento"
             value={brl(m.investment)}
             source="Meta Ads"
+            goal={{ label: `meta ${brl(GOALS.investimentoMensal)}`, percent: investPercent }}
+          />
+          <KpiCard
+            icon={Coins}
+            label="CPL (custo por lead)"
+            value={m.leads ? brl(m.cpl) : null}
+            source="Meta Ads + Planilha"
+          />
+          <KpiCard
+            icon={Target}
+            label="CPMQL (custo por MQL)"
+            value={m.mqls ? brl(m.cpmql) : null}
+            hint={`alvo ${brl(GOALS.cpmqlAlvo)}`}
+            source="Meta Ads + Planilha"
           />
           <KpiCard
             icon={Users}
-            label="Leads Tráfego"
+            label="Nº de Leads"
             value={num(m.leads)}
             source="Planilha"
           />
-          <KpiCard
-            icon={Flame}
-            label="Total de MQL"
-            value={num(m.mqls)}
-            hint={`A ${m.gradeA} · B ${m.gradeB}`}
-            source="Planilha"
-          />
-          <GradeBreakdownCard a={m.gradeA} b={m.gradeB} c={m.gradeC} d={m.gradeD} />
         </section>
 
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <GradeBreakdownCard a={m.gradeA} b={m.gradeB} c={m.gradeC} d={m.gradeD} />
+          </div>
           <RateCard
             label="Taxa de MQL %"
             value={pct(m.mqlRate)}
             delta={m.mqlRate - p.mqlRate}
           />
-          <RateCard
-            label="CPMQL (custo por MQL)"
-            value={m.mqls ? brl(m.cpmql) : "•••"}
-            delta={m.cpmql - p.cpmql}
-            invert
-          />
-          <RateCard
-            label="CPL (custo por lead)"
-            value={m.leads ? brl(m.cpl) : "•••"}
-            delta={m.cpl - p.cpl}
-            invert
-          />
         </section>
 
-        <CreativeTable rows={creatives} />
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <CreativeContribTable
+            title="Criativos que trouxeram Leads"
+            rows={creatives}
+            metric="leads"
+          />
+          <CreativeContribTable
+            title="Criativos que trouxeram MQL"
+            rows={creatives}
+            metric="mqls"
+          />
+        </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <OriginTable title="Leads por Canal" rows={channelRows} costLabel="CPL" />
