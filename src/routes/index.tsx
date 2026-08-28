@@ -32,7 +32,7 @@ import { useDashboardLeads, useDashboardSpend } from "@/lib/dashboard-data";
 import { runAllSync, runSync, type SyncSource } from "@/lib/sync";
 
 type Search = {
-  campanha: string;
+  campanhas: string[];
   de: string;
   ate: string;
   preset: number | null;
@@ -57,7 +57,11 @@ export const Route = createFileRoute("/")({
     ],
   }),
   validateSearch: (s: Record<string, unknown>): Search => ({
-    campanha: typeof s["campanha"] === "string" ? s["campanha"] : "todas",
+    campanhas: Array.isArray(s["campanhas"])
+      ? (s["campanhas"] as unknown[]).filter((x): x is string => typeof x === "string")
+      : typeof s["campanhas"] === "string" && s["campanhas"]
+        ? [s["campanhas"]]
+        : [],
     de: typeof s["de"] === "string" ? s["de"] : isoAgo(todayIso(), 29),
     ate: typeof s["ate"] === "string" ? s["ate"] : todayIso(),
     preset: s["preset"] === null || s["preset"] === undefined ? 30 : Number(s["preset"]) || null,
@@ -89,14 +93,17 @@ function Dashboard() {
     return s.spend;
   }, [spendQuery.data, isMock]);
 
+  const campanhasKey = search.campanhas.join("|");
   const opts = useMemo(
-    () => ({ from: search.de, to: search.ate, campaign: search.campanha }),
-    [search.de, search.ate, search.campanha],
+    () => ({ from: search.de, to: search.ate, campaigns: search.campanhas }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [search.de, search.ate, campanhasKey],
   );
   const prevOpts = useMemo(() => {
     const r = shiftRange(search.de, search.ate);
-    return { ...r, campaign: search.campanha };
-  }, [search.de, search.ate, search.campanha]);
+    return { ...r, campaigns: search.campanhas };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.de, search.ate, campanhasKey]);
 
   const leads = useMemo(() => filterLeads(allLeads, opts), [allLeads, opts]);
   const spend = useMemo(() => filterSpend(allSpend, opts), [allSpend, opts]);
@@ -115,7 +122,7 @@ function Dashboard() {
     () => channelBreakdown(leads, spend).map((c) => ({ label: c.channel, qty: c.qty, cost: c.cost })),
     [leads, spend],
   );
-  const campaigns = useMemo(() => campaignsFrom(allLeads), [allLeads]);
+  const campaigns = useMemo(() => campaignsFrom(allLeads, allSpend), [allLeads, allSpend]);
 
   const spanDays = daysInSpan(search.de, search.ate);
   const periodLabel =
@@ -153,7 +160,7 @@ function Dashboard() {
       <AppHeader />
       <FilterBar
         filters={{
-          campaign: search.campanha,
+          campaigns: search.campanhas,
           from: search.de,
           to: search.ate,
           preset: search.preset,
@@ -162,7 +169,7 @@ function Dashboard() {
         syncing={syncing}
         onChange={(patch) =>
           setSearch({
-            ...(patch.campaign !== undefined ? { campanha: patch.campaign } : {}),
+            ...(patch.campaigns !== undefined ? { campanhas: patch.campaigns } : {}),
             ...(patch.from !== undefined ? { de: patch.from } : {}),
             ...(patch.to !== undefined ? { ate: patch.to } : {}),
             ...(patch.preset !== undefined ? { preset: patch.preset } : {}),

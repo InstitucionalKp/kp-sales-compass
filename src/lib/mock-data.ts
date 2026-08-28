@@ -359,29 +359,30 @@ export function computeMetrics(leads: Lead[], spend: SpendRow[]): Metrics {
   };
 }
 
-export type FilterOpts = { from: string; to: string; campaign: string };
+export type FilterOpts = { from: string; to: string; campaigns: string[] };
+
+const inCampaigns = (campaigns: string[], c: string) =>
+  campaigns.length === 0 || campaigns.includes(c);
 
 export function filterLeads(rows: Lead[], opts: FilterOpts): Lead[] {
   return rows.filter(
-    (l) =>
-      l.date >= opts.from &&
-      l.date <= opts.to &&
-      (opts.campaign === "todas" || l.campaign === opts.campaign),
+    (l) => l.date >= opts.from && l.date <= opts.to && inCampaigns(opts.campaigns, l.campaign),
   );
 }
 
 export function filterSpend(rows: SpendRow[], opts: FilterOpts): SpendRow[] {
   return rows.filter(
-    (r) =>
-      r.date >= opts.from &&
-      r.date <= opts.to &&
-      (opts.campaign === "todas" || r.campaign === opts.campaign),
+    (r) => r.date >= opts.from && r.date <= opts.to && inCampaigns(opts.campaigns, r.campaign),
   );
 }
 
 /** Lista de campanhas presentes nos dados (para o filtro). */
-export function campaignsFrom(rows: Lead[]): string[] {
-  return [...new Set(rows.map((l) => l.campaign).filter((c) => c && c !== "—"))].sort();
+export function campaignsFrom(leads: Lead[], spend: SpendRow[] = []): string[] {
+  return [
+    ...new Set([...leads.map((l) => l.campaign), ...spend.map((s) => s.campaign)]),
+  ]
+    .filter((c) => c && c !== "—")
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
 
 export function shiftRange(from: string, to: string) {

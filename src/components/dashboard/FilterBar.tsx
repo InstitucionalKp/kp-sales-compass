@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -21,7 +22,8 @@ import { dateLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type Filters = {
-  campaign: string;
+  /** vazio = todas */
+  campaigns: string[];
   from: string;
   to: string;
   preset: number | null;
@@ -29,34 +31,59 @@ export type Filters = {
 
 const PRESETS = [7, 15, 30, 60];
 
-function Select({
+function MultiSelect({
   label,
-  value,
+  selected,
   options,
   onChange,
 }: {
   label: string;
-  value: string;
+  selected: string[];
   options: string[];
-  onChange: (v: string) => void;
+  onChange: (v: string[]) => void;
 }) {
+  const toggle = (o: string) =>
+    onChange(selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o]);
+
+  const text =
+    selected.length === 0
+      ? "Todas"
+      : selected.length === 1
+        ? (selected[0] ?? "Todas")
+        : `${selected.length} campanhas`;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="max-w-[280px] gap-2">
           <span className="text-muted-foreground">{label}:</span>
-          <span className="truncate font-medium">{value === "todas" ? "Todas" : value}</span>
+          <span className="truncate font-medium">{text}</span>
           <ChevronDown className="size-3.5 shrink-0 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-        <DropdownMenuItem onSelect={() => onChange("todas")}>Todas</DropdownMenuItem>
+      <DropdownMenuContent align="start" className="max-h-80 w-72 overflow-y-auto">
+        <DropdownMenuCheckboxItem
+          checked={selected.length === 0}
+          onSelect={(e) => e.preventDefault()}
+          onCheckedChange={() => onChange([])}
+        >
+          Todas
+        </DropdownMenuCheckboxItem>
         <DropdownMenuSeparator />
-        {options.map((o) => (
-          <DropdownMenuItem key={o} onSelect={() => onChange(o)}>
-            {o}
-          </DropdownMenuItem>
-        ))}
+        {options.length === 0 ? (
+          <DropdownMenuItem disabled>Nenhuma campanha</DropdownMenuItem>
+        ) : (
+          options.map((o) => (
+            <DropdownMenuCheckboxItem
+              key={o}
+              checked={selected.includes(o)}
+              onSelect={(e) => e.preventDefault()}
+              onCheckedChange={() => toggle(o)}
+            >
+              <span className="truncate">{o}</span>
+            </DropdownMenuCheckboxItem>
+          ))
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -79,11 +106,11 @@ export function FilterBar({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-3">
-      <Select
+      <MultiSelect
         label="Campanha"
-        value={filters.campaign}
+        selected={filters.campaigns}
         options={campaigns}
-        onChange={(campaign) => onChange({ campaign })}
+        onChange={(campaigns) => onChange({ campaigns })}
       />
 
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
