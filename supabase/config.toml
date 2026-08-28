@@ -1,1 +1,10 @@
 project_id = "tgbtmxcmkpbibqkonqde"
+
+[functions.sync-sheets]
+verify_jwt = false
+
+[functions.sync-meta]
+verify_jwt = false
+
+[functions.sync-ghl]
+verify_jwt = false

@@ -326,10 +326,10 @@ export function computeMetrics(leads: Lead[], spend: SpendRow[]): Metrics {
   };
 }
 
-type FilterOpts = { from: string; to: string; campaign: string };
+export type FilterOpts = { from: string; to: string; campaign: string };
 
-export function filterLeads(opts: FilterOpts): Lead[] {
-  return MOCK_LEADS.filter(
+export function filterLeads(rows: Lead[], opts: FilterOpts): Lead[] {
+  return rows.filter(
     (l) =>
       l.date >= opts.from &&
       l.date <= opts.to &&
@@ -337,13 +337,18 @@ export function filterLeads(opts: FilterOpts): Lead[] {
   );
 }
 
-export function filterSpend(opts: FilterOpts): SpendRow[] {
-  return MOCK_SPEND.filter(
+export function filterSpend(rows: SpendRow[], opts: FilterOpts): SpendRow[] {
+  return rows.filter(
     (r) =>
       r.date >= opts.from &&
       r.date <= opts.to &&
       (opts.campaign === "todas" || r.campaign === opts.campaign),
   );
+}
+
+/** Lista de campanhas presentes nos dados (para o filtro). */
+export function campaignsFrom(rows: Lead[]): string[] {
+  return [...new Set(rows.map((l) => l.campaign).filter((c) => c && c !== "—"))].sort();
 }
 
 export function shiftRange(from: string, to: string) {

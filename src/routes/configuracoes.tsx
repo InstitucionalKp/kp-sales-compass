@@ -19,7 +19,6 @@ import { AppHeader } from "@/components/dashboard/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { PIPELINES } from "@/lib/mock-data";
 import { DEFAULT_SEARCH } from "@/lib/dashboard-search";
 import { loadConfig, saveConfig, type ConfigKey } from "@/lib/app-config";
+import { runSync, type SyncSource } from "@/lib/sync";
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
@@ -192,15 +192,28 @@ function IntegrationCard({
   icon: Icon,
   status,
   lastSync,
+  syncSource,
   children,
 }: {
   name: string;
   icon: typeof Megaphone;
   status: Status;
   lastSync: string;
+  syncSource?: SyncSource;
   children: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  const onSyncNow = async () => {
+    if (!syncSource) return credentialsPending();
+    setRunning(true);
+    const r = await runSync(syncSource);
+    setRunning(false);
+    if (r.ok) toast.success(`${name}: ${r.message}`);
+    else toast.error(`${name} falhou`, { description: r.message });
+  };
+
   return (
     <div className="panel flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-2">
@@ -216,8 +229,8 @@ function IntegrationCard({
       </div>
       <p className="text-[11px] text-muted-foreground">Última sincronização: {lastSync}</p>
       <div className="flex gap-2">
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={credentialsPending}>
-          <RefreshCw className="size-3.5" /> Sincronizar agora
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={onSyncNow} disabled={running}>
+          <RefreshCw className={cn("size-3.5", running && "animate-spin")} /> Sincronizar agora
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setEditing((v) => !v)}>
           {editing ? "Fechar" : "Editar"}
@@ -259,18 +272,24 @@ function SettingsPage() {
   const [kpiSources, setKpiSources] = useState({ Leads: "Planilha", MQL: "Planilha" });
   const [pipeline, setPipeline] = useState(PIPELINES[0]!);
   const [goals, setGoals] = useState({ mql: "70", cpmql: "300", investimento: "20000" });
+  const [sheetSrc, setSheetSrc] = useState({
+    spreadsheetId: "1esmBP_vybIjhh2aw7miaS-oZMp9pDeroAUhYFaiTs9c",
+    gid: "220089555",
+  });
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const [cols, sales, sources, savedGoals] = await Promise.all([
+        const [src, cols, sales, sources, savedGoals] = await Promise.all([
+          loadConfig<{ spreadsheetId: string; gid: string }>("sheet_source"),
           loadConfig<Record<string, string>>("sheet_column_map"),
           loadConfig<{ pipeline: string; stages: Record<string, string> }>("ghl_sale_stages"),
           loadConfig<{ Leads: string; MQL: string }>("kpi_sources"),
           loadConfig<{ mql: string; cpmql: string; investimento: string }>("goals"),
         ]);
         if (!active) return;
+        if (src) setSheetSrc((s) => ({ ...s, ...src }));
         if (cols) setColMap((m) => ({ ...m, ...cols }));
         if (sales?.stages) setVendaMap((m) => ({ ...m, ...sales.stages }));
         if (sales?.pipeline) setPipeline(sales.pipeline);
@@ -321,31 +340,49 @@ function SettingsPage() {
 
           {tab === "integracoes" ? (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-              <IntegrationCard name="Google Sheets" icon={FileSpreadsheet} status="desconectado" lastSync="—">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">JSON da Service Account</Label>
-                  <Textarea rows={4} placeholder='{"type":"service_account", ...}' />
-                </div>
+              <IntegrationCard
+                name="Google Sheets"
+                icon={FileSpreadsheet}
+                status="desconectado"
+                lastSync="—"
+                syncSource="sheets"
+              >
+                <p className="text-[11px] text-muted-foreground">
+                  A planilha precisa estar como <strong>"qualquer pessoa com o link pode ver"</strong>.
+                  Sem credencial do Google.
+                </p>
                 <div className="space-y-1.5">
                   <Label className="text-xs">ID da Planilha</Label>
-                  <Input placeholder="1AbC..." />
+                  <Input
+                    value={sheetSrc.spreadsheetId}
+                    onChange={(e) => setSheetSrc((s) => ({ ...s, spreadsheetId: e.target.value }))}
+                    placeholder="1AbC..."
+                  />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Aba</Label>
-                    <Input placeholder="Leads" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Range</Label>
-                    <Input placeholder="Leads!A1:G" />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">GID da aba (número no fim da URL, após gid=)</Label>
+                  <Input
+                    value={sheetSrc.gid}
+                    onChange={(e) => setSheetSrc((s) => ({ ...s, gid: e.target.value }))}
+                    placeholder="0"
+                  />
                 </div>
-                <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={credentialsPending}>
-                  Testar conexão
+                <Button
+                  size="sm"
+                  className="bg-brand-gradient text-primary-foreground"
+                  onClick={() => persist("sheet_source", sheetSrc, "Planilha")}
+                >
+                  Salvar planilha
                 </Button>
               </IntegrationCard>
 
-              <IntegrationCard name="Meta Ads" icon={Megaphone} status="desconectado" lastSync="—">
+              <IntegrationCard
+                name="Meta Ads"
+                icon={Megaphone}
+                status="desconectado"
+                lastSync="—"
+                syncSource="meta"
+              >
                 <SecretField label="Access Token (longa duração)" />
                 <div className="space-y-1.5">
                   <Label className="text-xs">ID(s) da Conta de Anúncios</Label>
@@ -360,7 +397,13 @@ function SettingsPage() {
                 </Button>
               </IntegrationCard>
 
-              <IntegrationCard name="GoHighLevel" icon={Workflow} status="desconectado" lastSync="—">
+              <IntegrationCard
+                name="GoHighLevel"
+                icon={Workflow}
+                status="desconectado"
+                lastSync="—"
+                syncSource="ghl"
+              >
                 <SecretField label="Private Integration Token" />
                 <div className="space-y-1.5">
                   <Label className="text-xs">Location ID</Label>

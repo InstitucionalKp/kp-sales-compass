@@ -32,6 +32,144 @@ export type Database = {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          id: string
+          nome: string | null
+          contato: string | null
+          email: string | null
+          empresa: string | null
+          cargo: string | null
+          status_reuniao: string | null
+          mql_flag: boolean
+          qualificacao: string | null
+          is_mql: boolean
+          origem: string | null
+          campanha: string | null
+          criativo: string | null
+          conjunto: string | null
+          lead_date: string | null
+          lead_time: string | null
+          lead_at: string | null
+          sold: boolean
+          sold_at: string | null
+          raw: Json | null
+          synced_at: string
+        }
+        Insert: {
+          id: string
+          nome?: string | null
+          contato?: string | null
+          email?: string | null
+          empresa?: string | null
+          cargo?: string | null
+          status_reuniao?: string | null
+          mql_flag?: boolean
+          qualificacao?: string | null
+          is_mql?: boolean
+          origem?: string | null
+          campanha?: string | null
+          criativo?: string | null
+          conjunto?: string | null
+          lead_date?: string | null
+          lead_time?: string | null
+          lead_at?: string | null
+          sold?: boolean
+          sold_at?: string | null
+          raw?: Json | null
+          synced_at?: string
+        }
+        Update: {
+          id?: string
+          nome?: string | null
+          contato?: string | null
+          email?: string | null
+          empresa?: string | null
+          cargo?: string | null
+          status_reuniao?: string | null
+          mql_flag?: boolean
+          qualificacao?: string | null
+          is_mql?: boolean
+          origem?: string | null
+          campanha?: string | null
+          criativo?: string | null
+          conjunto?: string | null
+          lead_date?: string | null
+          lead_time?: string | null
+          lead_at?: string | null
+          sold?: boolean
+          sold_at?: string | null
+          raw?: Json | null
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      meta_insights: {
+        Row: {
+          id: string
+          insight_date: string
+          account_id: string | null
+          campanha: string | null
+          conjunto: string | null
+          criativo: string | null
+          spend: number
+          impressions: number
+          clicks: number
+          leads: number
+          synced_at: string
+        }
+        Insert: {
+          id: string
+          insight_date: string
+          account_id?: string | null
+          campanha?: string | null
+          conjunto?: string | null
+          criativo?: string | null
+          spend?: number
+          impressions?: number
+          clicks?: number
+          leads?: number
+          synced_at?: string
+        }
+        Update: {
+          id?: string
+          insight_date?: string
+          account_id?: string | null
+          campanha?: string | null
+          conjunto?: string | null
+          criativo?: string | null
+          spend?: number
+          impressions?: number
+          clicks?: number
+          leads?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      sync_status: {
+        Row: {
+          source: string
+          last_run_at: string | null
+          status: string | null
+          rows: number
+          message: string | null
+        }
+        Insert: {
+          source: string
+          last_run_at?: string | null
+          status?: string | null
+          rows?: number
+          message?: string | null
+        }
+        Update: {
+          source?: string
+          last_run_at?: string | null
+          status?: string | null
+          rows?: number
+          message?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

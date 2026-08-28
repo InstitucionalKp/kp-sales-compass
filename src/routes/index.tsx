@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Coins, Info, Target, Users, Wallet } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Coins, Info, Target, TriangleAlert, Users, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/dashboard/AppHeader";
 import { FilterBar } from "@/components/dashboard/FilterBar";
@@ -14,10 +15,10 @@ import { EvolutionChart } from "@/components/dashboard/EvolutionChart";
 import type { Granularity } from "@/lib/dashboard-search";
 import { brl, dateLabel, num, pct } from "@/lib/format";
 import {
-  CAMPAIGNS,
   GOALS,
   TODAY,
   buildTimeSeries,
+  campaignsFrom,
   channelBreakdown,
   computeMetrics,
   creativeBreakdown,
@@ -27,6 +28,8 @@ import {
   isoAgo,
   shiftRange,
 } from "@/lib/mock-data";
+import { useDashboardLeads, useDashboardSpend } from "@/lib/dashboard-data";
+import { runAllSync, runSync, type SyncSource } from "@/lib/sync";
 
 type Search = {
   campanha: string;
@@ -66,66 +69,84 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/" });
+  const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState<string | null>(null);
 
   const setSearch = (patch: Partial<Search>) =>
     navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
 
-  const leads = useMemo(
-    () => filterLeads({ from: search.de, to: search.ate, campaign: search.campanha }),
-    [search.de, search.ate, search.campanha],
-  );
-  const spend = useMemo(
-    () => filterSpend({ from: search.de, to: search.ate, campaign: search.campanha }),
-    [search.de, search.ate, search.campanha],
-  );
+  const leadsQuery = useDashboardLeads();
+  const spendQuery = useDashboardSpend();
 
-  const prev = useMemo(() => {
+  const isMock = leadsQuery.data?.source === "mock";
+  const noLeads = leadsQuery.data?.empty === true;
+  const allLeads = useMemo(() => leadsQuery.data?.leads ?? [], [leadsQuery.data]);
+  const allSpend = useMemo(() => {
+    const s = spendQuery.data;
+    if (!s) return [];
+    // não misturar leads reais com investimento mock
+    if (!isMock && s.source === "mock") return [];
+    return s.spend;
+  }, [spendQuery.data, isMock]);
+
+  const opts = useMemo(
+    () => ({ from: search.de, to: search.ate, campaign: search.campanha }),
+    [search.de, search.ate, search.campanha],
+  );
+  const prevOpts = useMemo(() => {
     const r = shiftRange(search.de, search.ate);
-    return {
-      leads: filterLeads({ ...r, campaign: search.campanha }),
-      spend: filterSpend({ ...r, campaign: search.campanha }),
-    };
+    return { ...r, campaign: search.campanha };
   }, [search.de, search.ate, search.campanha]);
 
+  const leads = useMemo(() => filterLeads(allLeads, opts), [allLeads, opts]);
+  const spend = useMemo(() => filterSpend(allSpend, opts), [allSpend, opts]);
   const m = useMemo(() => computeMetrics(leads, spend), [leads, spend]);
-  const p = useMemo(() => computeMetrics(prev.leads, prev.spend), [prev]);
+  const p = useMemo(
+    () => computeMetrics(filterLeads(allLeads, prevOpts), filterSpend(allSpend, prevOpts)),
+    [allLeads, allSpend, prevOpts],
+  );
 
   const series = useMemo(
     () => buildTimeSeries(leads, search.de, search.ate, search.gran),
     [leads, search.de, search.ate, search.gran],
   );
-
   const creatives = useMemo(() => creativeBreakdown(leads, spend), [leads, spend]);
-
   const channelRows: OriginRow[] = useMemo(
     () => channelBreakdown(leads, spend).map((c) => ({ label: c.channel, qty: c.qty, cost: c.cost })),
     [leads, spend],
   );
+  const campaigns = useMemo(() => campaignsFrom(allLeads), [allLeads]);
 
   const spanDays = daysInSpan(search.de, search.ate);
   const periodLabel =
     search.preset !== null
       ? `${search.preset} dias`
       : `${dateLabel(search.de)} – ${dateLabel(search.ate)}`;
-
   const investPercent = (m.investment / GOALS.investimentoMensal) * 100;
 
-  const handleSync = (source: "all" | "meta" | "ghl" | "sheets") => {
-    setSyncing(source);
-    const labels = {
-      all: "todas as fontes",
-      meta: "Meta Ads",
-      ghl: "GoHighLevel",
-      sheets: "Google Sheets",
-    };
-    setTimeout(() => {
-      setSyncing(null);
-      toast.error(`Sync de ${labels[source]} indisponível`, {
-        description: "Conecte as integrações em Configurações para sincronizar dados reais.",
-      });
-    }, 1600);
+  const SYNC_LABEL: Record<SyncSource | "all", string> = {
+    all: "Sincronização",
+    sheets: "Google Sheets",
+    meta: "Meta Ads",
+    ghl: "GoHighLevel",
   };
+
+  const handleSync = async (source: "all" | "meta" | "ghl" | "sheets") => {
+    setSyncing(source);
+    try {
+      const outcomes =
+        source === "all" ? await runAllSync() : [await runSync(source as SyncSource)];
+      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      for (const o of outcomes) {
+        if (o.ok) toast.success(`${SYNC_LABEL[o.source]}: ${o.message}`);
+        else toast.error(`${SYNC_LABEL[o.source]} falhou`, { description: o.message });
+      }
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const loading = leadsQuery.isLoading;
 
   return (
     <div className="min-h-screen">
@@ -137,7 +158,7 @@ function Dashboard() {
           to: search.ate,
           preset: search.preset,
         }}
-        campaigns={CAMPAIGNS}
+        campaigns={campaigns}
         syncing={syncing}
         onChange={(patch) =>
           setSearch({
@@ -154,6 +175,14 @@ function Dashboard() {
       <main className="mx-auto flex max-w-[1600px] flex-col gap-4 p-4">
         <h1 className="sr-only">Dashboard de marketing KP Assessoria</h1>
 
+        {noLeads ? (
+          <div className="panel flex items-center gap-2 border-primary/40 p-3 text-sm">
+            <TriangleAlert className="size-4 shrink-0 text-primary" />
+            Nenhum lead sincronizado ainda. Clique em <strong>Sincronizar</strong> para puxar da
+            planilha.
+          </div>
+        ) : null}
+
         <GoalBar
           actual={m.mqls}
           monthlyGoal={GOALS.mqlMensal}
@@ -165,28 +194,32 @@ function Dashboard() {
           <KpiCard
             icon={Wallet}
             label="Meta de Investimento"
-            value={brl(m.investment)}
+            value={m.investment > 0 ? brl(m.investment) : null}
             source="Meta Ads"
+            loading={loading}
             goal={{ label: `meta ${brl(GOALS.investimentoMensal)}`, percent: investPercent }}
           />
           <KpiCard
             icon={Coins}
             label="CPL (custo por lead)"
-            value={m.leads ? brl(m.cpl) : null}
+            value={m.leads && m.investment ? brl(m.cpl) : null}
             source="Meta Ads + Planilha"
+            loading={loading}
           />
           <KpiCard
             icon={Target}
             label="CPMQL (custo por MQL)"
-            value={m.mqls ? brl(m.cpmql) : null}
+            value={m.mqls && m.investment ? brl(m.cpmql) : null}
             hint={`alvo ${brl(GOALS.cpmqlAlvo)}`}
             source="Meta Ads + Planilha"
+            loading={loading}
           />
           <KpiCard
             icon={Users}
             label="Nº de Leads"
             value={num(m.leads)}
             source="Planilha"
+            loading={loading}
           />
         </section>
 
@@ -194,11 +227,7 @@ function Dashboard() {
           <div className="lg:col-span-2">
             <GradeBreakdownCard a={m.gradeA} b={m.gradeB} c={m.gradeC} d={m.gradeD} />
           </div>
-          <RateCard
-            label="Taxa de MQL %"
-            value={pct(m.mqlRate)}
-            delta={m.mqlRate - p.mqlRate}
-          />
+          <RateCard label="Taxa de MQL %" value={pct(m.mqlRate)} delta={m.mqlRate - p.mqlRate} />
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -227,7 +256,9 @@ function Dashboard() {
 
         <p className="flex items-center justify-center gap-2 pb-6 text-xs text-muted-foreground">
           <Info className="size-3.5" />
-          Dados de demonstração — conecte Google Sheets, Meta Ads e GoHighLevel em Configurações.
+          {isMock
+            ? "Dados de demonstração — rode as migrações do banco e sincronize a planilha para ver dados reais."
+            : "Dados ao vivo. Investimento e vendas dependem de conectar Meta Ads e GoHighLevel em Configurações."}
         </p>
       </main>
     </div>

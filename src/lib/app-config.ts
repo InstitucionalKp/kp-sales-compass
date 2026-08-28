@@ -1,6 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type ConfigKey = "sheet_column_map" | "ghl_sale_stages" | "kpi_sources" | "goals";
+export type ConfigKey =
+  | "sheet_source"
+  | "sheet_column_map"
+  | "ghl_sale_stages"
+  | "kpi_sources"
+  | "goals";
 
 export async function loadConfig<T>(key: ConfigKey): Promise<T | null> {
   const { data, error } = await supabase
