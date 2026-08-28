@@ -16,7 +16,7 @@ import type { Granularity } from "@/lib/dashboard-search";
 import { brl, dateLabel, num, pct } from "@/lib/format";
 import {
   GOALS,
-  TODAY,
+  todayIso,
   buildTimeSeries,
   campaignsFrom,
   channelBreakdown,
@@ -58,8 +58,8 @@ export const Route = createFileRoute("/")({
   }),
   validateSearch: (s: Record<string, unknown>): Search => ({
     campanha: typeof s["campanha"] === "string" ? s["campanha"] : "todas",
-    de: typeof s["de"] === "string" ? s["de"] : isoAgo(TODAY, 29),
-    ate: typeof s["ate"] === "string" ? s["ate"] : TODAY,
+    de: typeof s["de"] === "string" ? s["de"] : isoAgo(todayIso(), 29),
+    ate: typeof s["ate"] === "string" ? s["ate"] : todayIso(),
     preset: s["preset"] === null || s["preset"] === undefined ? 30 : Number(s["preset"]) || null,
     gran: s["gran"] === "semana" || s["gran"] === "mes" ? s["gran"] : "dia",
   }),
@@ -168,7 +168,7 @@ function Dashboard() {
             ...(patch.preset !== undefined ? { preset: patch.preset } : {}),
           })
         }
-        onPreset={(d) => setSearch({ preset: d, de: isoAgo(TODAY, d - 1), ate: TODAY })}
+        onPreset={(d) => setSearch({ preset: d, de: isoAgo(todayIso(), d - 1), ate: todayIso() })}
         onSync={handleSync}
       />
 
@@ -230,7 +230,7 @@ function Dashboard() {
           <RateCard label="Taxa de MQL %" value={pct(m.mqlRate)} delta={m.mqlRate - p.mqlRate} />
         </section>
 
-        <CreativeSection rows={creatives} />
+        <CreativeSection rows={creatives} periodLabel={periodLabel} />
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <OriginTable title="Leads por Canal" rows={channelRows} costLabel="CPL" />

@@ -29,7 +29,7 @@ function toGrade(q: string | null): LeadGrade {
 }
 
 function dbToLead(r: LeadRow): Lead {
-  const date = r.lead_date ?? "";
+  const date = (r.lead_date ?? "").slice(0, 10);
   const time = r.lead_time ?? "00:00";
   return {
     id: r.id,
@@ -55,7 +55,7 @@ function dbToLead(r: LeadRow): Lead {
 
 function dbToSpend(r: MetaRow): SpendRow {
   return {
-    date: r.insight_date,
+    date: String(r.insight_date).slice(0, 10),
     creative: r.criativo ?? "(sem criativo)",
     campaign: r.campanha ?? "—",
     channel: "Meta Ads",

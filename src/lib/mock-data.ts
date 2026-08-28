@@ -184,7 +184,14 @@ function mulberry32(seed: number) {
   };
 }
 
-export const TODAY = "2026-08-27";
+/** "Hoje" real (UTC), YYYY-MM-DD. Âncora dos filtros de período. */
+export const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Âncora da geração do mock (avaliada no load do módulo). Os dados de
+ * demonstração caem nos últimos 90 dias a partir daqui.
+ */
+export const TODAY = todayIso();
 
 function isoMinusDays(base: string, days: number) {
   const d = new Date(`${base}T12:00:00Z`);

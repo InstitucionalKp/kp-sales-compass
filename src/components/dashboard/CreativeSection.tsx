@@ -61,7 +61,12 @@ function MiniTable({
       row: r,
       value: metric === "leads" ? r.leads : metric === "mqls" ? r.mqls : r.roi,
     }));
-    if (metric === "roi") return mapped.filter((d) => d.row.investment > 0).sort((a, b) => b.value - a.value);
+    if (metric === "roi") {
+      // só criativos que tiveram investimento E leads no período
+      return mapped
+        .filter((d) => d.row.investment > 0 && d.row.leads > 0)
+        .sort((a, b) => b.value - a.value);
+    }
     return mapped.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
   }, [rows, metric]);
 
@@ -288,11 +293,20 @@ function DetailDialog({
   );
 }
 
-export function CreativeSection({ rows }: { rows: CreativeStats[] }) {
+export function CreativeSection({
+  rows,
+  periodLabel,
+}: {
+  rows: CreativeStats[];
+  periodLabel: string;
+}) {
   const [selected, setSelected] = useState<CreativeStats | null>(null);
 
   return (
     <>
+      <p className="-mb-1 text-xs text-muted-foreground">
+        Criativos com atividade no período: <strong className="text-foreground">{periodLabel}</strong>
+      </p>
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <MiniTable
           title="Leads por Criativo"
