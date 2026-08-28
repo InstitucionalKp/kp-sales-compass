@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PIPELINES } from "@/lib/mock-data";
 import { DEFAULT_SEARCH } from "@/lib/dashboard-search";
+import { loadConfig, saveConfig, type ConfigKey } from "@/lib/app-config";
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
@@ -169,10 +170,21 @@ function StatusPill({ status }: { status: Status }) {
   );
 }
 
-function notConnected() {
-  toast.error("Backend não conectado", {
-    description: "Ative o Lovable Cloud para salvar credenciais como secrets e sincronizar.",
+function credentialsPending() {
+  toast.info("Credenciais ainda não cadastradas", {
+    description: "Peça no chat para cadastrar os tokens do Meta Ads, GoHighLevel e Google Sheets como secrets.",
   });
+}
+
+async function persist(key: ConfigKey, value: Record<string, unknown>, label: string) {
+  try {
+    await saveConfig(key, value);
+    toast.success(`${label} salvo`, { description: "Configuração gravada no banco." });
+  } catch (e) {
+    toast.error("Não foi possível salvar", {
+      description: e instanceof Error ? e.message : "Erro desconhecido",
+    });
+  }
 }
 
 function IntegrationCard({
@@ -204,7 +216,7 @@ function IntegrationCard({
       </div>
       <p className="text-[11px] text-muted-foreground">Última sincronização: {lastSync}</p>
       <div className="flex gap-2">
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={notConnected}>
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={credentialsPending}>
           <RefreshCw className="size-3.5" /> Sincronizar agora
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setEditing((v) => !v)}>
@@ -247,6 +259,31 @@ function SettingsPage() {
   const [kpiSources, setKpiSources] = useState({ Leads: "Planilha", MQL: "Planilha" });
   const [pipeline, setPipeline] = useState(PIPELINES[0]!);
   const [goals, setGoals] = useState({ mql: "70", cpmql: "300", investimento: "20000" });
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [cols, sales, sources, savedGoals] = await Promise.all([
+          loadConfig<Record<string, string>>("sheet_column_map"),
+          loadConfig<{ pipeline: string; stages: Record<string, string> }>("ghl_sale_stages"),
+          loadConfig<{ Leads: string; MQL: string }>("kpi_sources"),
+          loadConfig<{ mql: string; cpmql: string; investimento: string }>("goals"),
+        ]);
+        if (!active) return;
+        if (cols) setColMap((m) => ({ ...m, ...cols }));
+        if (sales?.stages) setVendaMap((m) => ({ ...m, ...sales.stages }));
+        if (sales?.pipeline) setPipeline(sales.pipeline);
+        if (sources) setKpiSources((s) => ({ ...s, ...sources }));
+        if (savedGoals) setGoals((g) => ({ ...g, ...savedGoals }));
+      } catch {
+        /* mantém os valores padrão */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen">
@@ -303,7 +340,7 @@ function SettingsPage() {
                     <Input placeholder="Leads!A1:G" />
                   </div>
                 </div>
-                <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
+                <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={credentialsPending}>
                   Testar conexão
                 </Button>
               </IntegrationCard>
@@ -318,7 +355,7 @@ function SettingsPage() {
                   <Label className="text-xs">Action type que conta como "lead"</Label>
                   <Input defaultValue="offsite_conversion.fb_pixel_lead" />
                 </div>
-                <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
+                <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={credentialsPending}>
                   Testar conexão
                 </Button>
               </IntegrationCard>
@@ -333,10 +370,10 @@ function SettingsPage() {
                   Usado só para marcar quais criativos geraram venda.
                 </p>
                 <div className="flex gap-2">
-                  <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
+                  <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={credentialsPending}>
                     Testar conexão
                   </Button>
-                  <Button size="sm" variant="outline" onClick={notConnected}>
+                  <Button size="sm" variant="outline" onClick={credentialsPending}>
                     Carregar pipelines
                   </Button>
                 </div>
@@ -365,7 +402,10 @@ function SettingsPage() {
                 Total de MQL é derivado da coluna Qualificação: leads A e B contam como MQL
                 (a coluna MQL SIM/NÃO fica guardada, mas não entra no cálculo).
               </p>
-              <Button className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
+              <Button
+                className="bg-brand-gradient text-primary-foreground"
+                onClick={() => persist("sheet_column_map", colMap, "Mapeamento")}
+              >
                 Salvar mapeamento
               </Button>
             </div>
@@ -391,7 +431,10 @@ function SettingsPage() {
                   </div>
                 ))}
               </div>
-              <Button className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
+              <Button
+                className="bg-brand-gradient text-primary-foreground"
+                onClick={() => persist("ghl_sale_stages", { pipeline, stages: vendaMap }, "Mapeamento de vendas")}
+              >
                 Salvar
               </Button>
             </div>
@@ -412,7 +455,10 @@ function SettingsPage() {
                   />
                 </div>
               ))}
-              <Button className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
+              <Button
+                className="bg-brand-gradient text-primary-foreground"
+                onClick={() => persist("kpi_sources", kpiSources, "Fontes dos KPIs")}
+              >
                 Salvar fontes
               </Button>
             </div>
@@ -444,7 +490,10 @@ function SettingsPage() {
                   onChange={(e) => setGoals((g) => ({ ...g, investimento: e.target.value }))}
                 />
               </div>
-              <Button className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
+              <Button
+                className="bg-brand-gradient text-primary-foreground"
+                onClick={() => persist("goals", goals, "Metas")}
+              >
                 Salvar metas
               </Button>
             </div>
