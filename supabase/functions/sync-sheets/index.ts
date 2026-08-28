@@ -222,7 +222,13 @@ Deno.serve(async (req: Request) => {
 
     return json({ ok: true, rows: unique.length, sheetId, gid });
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    const err = e as { message?: string; details?: string; hint?: string; code?: string };
+    const message = e instanceof Error
+      ? e.message
+      : err && typeof err === "object"
+        ? [err.message, err.details, err.hint, err.code].filter(Boolean).join(" | ") ||
+          JSON.stringify(e)
+        : String(e);
     await supabase.from("sync_status").upsert({
       source: "sheets",
       status: "error",
