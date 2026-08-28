@@ -98,10 +98,26 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    for (let i = 0; i < records.length; i += 500) {
+    // Agrega linhas com o mesmo id (mesma data/conta/campanha/conjunto/criativo),
+    // senão o upsert falha com "ON CONFLICT DO UPDATE cannot affect row a second time".
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const rec of records) {
+      const key = rec.id as string;
+      const prev = byId.get(key);
+      if (!prev) {
+        byId.set(key, rec);
+        continue;
+      }
+      for (const f of ["spend", "impressions", "clicks", "leads"]) {
+        prev[f] = Number(prev[f] ?? 0) + Number(rec[f] ?? 0);
+      }
+    }
+    const unique = [...byId.values()];
+
+    for (let i = 0; i < unique.length; i += 500) {
       const { error } = await supabase
         .from("meta_insights")
-        .upsert(records.slice(i, i + 500), { onConflict: "id" });
+        .upsert(unique.slice(i, i + 500), { onConflict: "id" });
       if (error) throw error;
     }
 
