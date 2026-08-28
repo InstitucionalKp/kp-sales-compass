@@ -1,0 +1,1 @@
+COMMENT ON COLUMN public.leads.sale_value IS 'Valor da venda fechada (monetaryValue do GHL)';
