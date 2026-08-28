@@ -66,6 +66,10 @@ alter table public.sync_status   enable row level security;
 grant select on public.leads, public.meta_insights, public.sync_status to anon, authenticated;
 grant all    on public.leads, public.meta_insights, public.sync_status to service_role;
 
+drop policy if exists "leads legível por todos"         on public.leads;
+drop policy if exists "meta_insights legível por todos" on public.meta_insights;
+drop policy if exists "sync_status legível por todos"   on public.sync_status;
+
 create policy "leads legível por todos"         on public.leads         for select to anon, authenticated using (true);
 create policy "meta_insights legível por todos" on public.meta_insights for select to anon, authenticated using (true);
 create policy "sync_status legível por todos"   on public.sync_status   for select to anon, authenticated using (true);
