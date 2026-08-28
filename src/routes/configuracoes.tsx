@@ -241,26 +241,6 @@ function IntegrationCard({
   );
 }
 
-function SecretField({ label, hint }: { label: string; hint?: string }) {
-  const [replacing, setReplacing] = useState(false);
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
-      {replacing ? (
-        <Input type="password" placeholder="Cole a credencial" />
-      ) : (
-        <div className="flex items-center gap-2">
-          <Input value="••••••••••••" readOnly className="text-muted-foreground" />
-          <Button size="sm" variant="outline" onClick={() => setReplacing(true)}>
-            Substituir
-          </Button>
-        </div>
-      )}
-      {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
-    </div>
-  );
-}
-
 function SettingsPage() {
   const [tab, setTab] = useState<TabId>("integracoes");
   const [vendaMap, setVendaMap] = useState<Record<string, string>>(() =>
@@ -383,18 +363,23 @@ function SettingsPage() {
                 lastSync="—"
                 syncSource="meta"
               >
-                <SecretField label="Access Token (longa duração)" />
-                <div className="space-y-1.5">
-                  <Label className="text-xs">ID(s) da Conta de Anúncios</Label>
-                  <Input placeholder="act_123456, act_789012" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Action type que conta como "lead"</Label>
-                  <Input defaultValue="offsite_conversion.fb_pixel_lead" />
-                </div>
-                <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={credentialsPending}>
-                  Testar conexão
-                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Cadastre no <strong>Lovable Cloud → Secrets</strong> e depois use "Sincronizar agora":
+                </p>
+                <ul className="space-y-1 text-[11px] text-muted-foreground">
+                  <li>
+                    <code className="text-foreground">META_ACCESS_TOKEN</code> — token de longa duração
+                    (permissão <em>ads_read</em>)
+                  </li>
+                  <li>
+                    <code className="text-foreground">META_AD_ACCOUNT_IDS</code> — ex:{" "}
+                    <code>act_893917593787021</code> (várias separadas por vírgula)
+                  </li>
+                </ul>
+                <p className="text-[11px] text-muted-foreground">
+                  Opcionais: <code>META_DATE_PRESET</code> (default <code>last_30d</code>),{" "}
+                  <code>META_API_VERSION</code> (default <code>v23.0</code>).
+                </p>
               </IntegrationCard>
 
               <IntegrationCard
@@ -404,22 +389,21 @@ function SettingsPage() {
                 lastSync="—"
                 syncSource="ghl"
               >
-                <SecretField label="Private Integration Token" />
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Location ID</Label>
-                  <Input placeholder="loc_xxxxxxxx" />
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Usado só para marcar quais criativos geraram venda.
+                <p className="text-xs text-muted-foreground">
+                  Cadastre no <strong>Lovable Cloud → Secrets</strong> e depois use "Sincronizar agora":
                 </p>
-                <div className="flex gap-2">
-                  <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={credentialsPending}>
-                    Testar conexão
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={credentialsPending}>
-                    Carregar pipelines
-                  </Button>
-                </div>
+                <ul className="space-y-1 text-[11px] text-muted-foreground">
+                  <li>
+                    <code className="text-foreground">GHL_ACCESS_TOKEN</code> — Private Integration Token
+                  </li>
+                  <li>
+                    <code className="text-foreground">GHL_LOCATION_ID</code> — Location ID
+                  </li>
+                </ul>
+                <p className="text-[11px] text-muted-foreground">
+                  Usado só para marcar quais criativos geraram venda. Os stages que contam como venda
+                  ficam na aba "Vendas (GHL)".
+                </p>
               </IntegrationCard>
             </div>
           ) : null}
