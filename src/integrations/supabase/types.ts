@@ -34,139 +34,139 @@ export type Database = {
       }
       leads: {
         Row: {
-          id: string
-          nome: string | null
+          campanha: string | null
+          cargo: string | null
+          conjunto: string | null
           contato: string | null
+          criativo: string | null
           email: string | null
           empresa: string | null
-          cargo: string | null
-          status_reuniao: string | null
-          mql_flag: boolean
-          qualificacao: string | null
+          id: string
           is_mql: boolean
-          origem: string | null
-          campanha: string | null
-          criativo: string | null
-          conjunto: string | null
+          lead_at: string | null
           lead_date: string | null
           lead_time: string | null
-          lead_at: string | null
+          mql_flag: boolean
+          nome: string | null
+          origem: string | null
+          qualificacao: string | null
+          raw: Json | null
           sold: boolean
           sold_at: string | null
-          raw: Json | null
+          status_reuniao: string | null
           synced_at: string
         }
         Insert: {
-          id: string
-          nome?: string | null
+          campanha?: string | null
+          cargo?: string | null
+          conjunto?: string | null
           contato?: string | null
+          criativo?: string | null
           email?: string | null
           empresa?: string | null
-          cargo?: string | null
-          status_reuniao?: string | null
-          mql_flag?: boolean
-          qualificacao?: string | null
+          id: string
           is_mql?: boolean
-          origem?: string | null
-          campanha?: string | null
-          criativo?: string | null
-          conjunto?: string | null
+          lead_at?: string | null
           lead_date?: string | null
           lead_time?: string | null
-          lead_at?: string | null
+          mql_flag?: boolean
+          nome?: string | null
+          origem?: string | null
+          qualificacao?: string | null
+          raw?: Json | null
           sold?: boolean
           sold_at?: string | null
-          raw?: Json | null
+          status_reuniao?: string | null
           synced_at?: string
         }
         Update: {
-          id?: string
-          nome?: string | null
+          campanha?: string | null
+          cargo?: string | null
+          conjunto?: string | null
           contato?: string | null
+          criativo?: string | null
           email?: string | null
           empresa?: string | null
-          cargo?: string | null
-          status_reuniao?: string | null
-          mql_flag?: boolean
-          qualificacao?: string | null
+          id?: string
           is_mql?: boolean
-          origem?: string | null
-          campanha?: string | null
-          criativo?: string | null
-          conjunto?: string | null
+          lead_at?: string | null
           lead_date?: string | null
           lead_time?: string | null
-          lead_at?: string | null
+          mql_flag?: boolean
+          nome?: string | null
+          origem?: string | null
+          qualificacao?: string | null
+          raw?: Json | null
           sold?: boolean
           sold_at?: string | null
-          raw?: Json | null
+          status_reuniao?: string | null
           synced_at?: string
         }
         Relationships: []
       }
       meta_insights: {
         Row: {
-          id: string
-          insight_date: string
           account_id: string | null
           campanha: string | null
+          clicks: number
           conjunto: string | null
           criativo: string | null
-          spend: number
+          id: string
           impressions: number
-          clicks: number
+          insight_date: string
           leads: number
+          spend: number
           synced_at: string
         }
         Insert: {
-          id: string
-          insight_date: string
           account_id?: string | null
           campanha?: string | null
+          clicks?: number
           conjunto?: string | null
           criativo?: string | null
-          spend?: number
+          id: string
           impressions?: number
-          clicks?: number
+          insight_date: string
           leads?: number
+          spend?: number
           synced_at?: string
         }
         Update: {
-          id?: string
-          insight_date?: string
           account_id?: string | null
           campanha?: string | null
+          clicks?: number
           conjunto?: string | null
           criativo?: string | null
-          spend?: number
+          id?: string
           impressions?: number
-          clicks?: number
+          insight_date?: string
           leads?: number
+          spend?: number
           synced_at?: string
         }
         Relationships: []
       }
       sync_status: {
         Row: {
-          source: string
           last_run_at: string | null
-          status: string | null
-          rows: number
           message: string | null
+          rows: number
+          source: string
+          status: string | null
         }
         Insert: {
-          source: string
           last_run_at?: string | null
-          status?: string | null
-          rows?: number
           message?: string | null
+          rows?: number
+          source: string
+          status?: string | null
         }
         Update: {
-          source?: string
           last_run_at?: string | null
-          status?: string | null
-          rows?: number
           message?: string | null
+          rows?: number
+          source?: string
+          status?: string | null
         }
         Relationships: []
       }
