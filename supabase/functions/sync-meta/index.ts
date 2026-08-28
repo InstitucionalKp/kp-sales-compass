@@ -176,6 +176,25 @@ Deno.serve(async (req: Request) => {
     const auth = { Authorization: `Bearer ${token}` };
     const records: Record<string, unknown>[] = [];
 
+    // campanhas ATIVAS (para o filtro do dashboard)
+    const activeCampaigns = new Set<string>();
+    for (const account of accounts) {
+      let next: string | null =
+        `${API}/${account}/campaigns?fields=name,effective_status&limit=500`;
+      let g = 0;
+      while (next && g++ < 20) {
+        const body = await metaFetch(next, { headers: auth });
+        for (const c of ((body["data"] as { name?: string; effective_status?: string }[]) ?? [])) {
+          if (c.name && c.effective_status === "ACTIVE") activeCampaigns.add(c.name);
+        }
+        next = ((body["paging"] as { next?: string })?.next) ?? null;
+      }
+    }
+    await supabase
+      .from("app_config")
+      .upsert({ key: "active_campaigns", value: [...activeCampaigns] }, { onConflict: "key" });
+    debug.activeCampaigns = activeCampaigns.size;
+
     for (const account of accounts) {
       const rows = await pullAccount(API, auth, account, datePreset);
       for (const row of rows) {

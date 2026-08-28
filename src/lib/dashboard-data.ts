@@ -115,6 +115,28 @@ export function useDashboardSpend() {
   });
 }
 
+/** Campanhas ativas no Meta (gravadas pelo sync-meta em app_config.active_campaigns). */
+export function useActiveCampaigns() {
+  return useQuery<string[]>({
+    queryKey: ["dashboard", "active_campaigns"],
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("app_config")
+          .select("value")
+          .eq("key", "active_campaigns")
+          .maybeSingle();
+        if (error) throw error;
+        return Array.isArray(data?.value) ? (data.value as string[]).filter(Boolean) : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+}
+
 export type SyncRow = Tables<"sync_status">;
 
 export function useSyncStatus() {

@@ -19,6 +19,7 @@ import {
   todayIso,
   buildTimeSeries,
   campaignsFrom,
+  isRealCampaign,
   channelBreakdown,
   computeMetrics,
   creativeBreakdown,
@@ -28,7 +29,7 @@ import {
   isoAgo,
   shiftRange,
 } from "@/lib/mock-data";
-import { useDashboardLeads, useDashboardSpend } from "@/lib/dashboard-data";
+import { useActiveCampaigns, useDashboardLeads, useDashboardSpend } from "@/lib/dashboard-data";
 import { runAllSync, runSync, type SyncSource } from "@/lib/sync";
 
 type Search = {
@@ -122,7 +123,17 @@ function Dashboard() {
     () => channelBreakdown(leads, spend).map((c) => ({ label: c.channel, qty: c.qty, cost: c.cost })),
     [leads, spend],
   );
-  const campaigns = useMemo(() => campaignsFrom(allLeads, allSpend), [allLeads, allSpend]);
+  const activeCampaigns = useActiveCampaigns();
+  const campaigns = useMemo(() => {
+    const active = (activeCampaigns.data ?? []).filter(isRealCampaign);
+    // se o Meta trouxe a lista de ativas, usa ela; senão, campanhas com dados
+    const base = active.length > 0 ? active : campaignsFrom(allLeads, allSpend);
+    // nunca some com uma campanha que já está selecionada
+    return [...new Set([...base, ...search.campanhas])]
+      .filter(isRealCampaign)
+      .sort((a, b) => a.localeCompare(b, "pt-BR"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allLeads, allSpend, activeCampaigns.data, campanhasKey]);
 
   const spanDays = daysInSpan(search.de, search.ate);
   const periodLabel =

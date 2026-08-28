@@ -376,12 +376,21 @@ export function filterSpend(rows: SpendRow[], opts: FilterOpts): SpendRow[] {
   );
 }
 
+/** Descarta nomes de campanha lixo (placeholder de UTM, id numérico puro, vazio). */
+export function isRealCampaign(c: string): boolean {
+  if (!c || c === "—") return false;
+  const t = c.trim();
+  if (!t) return false;
+  if (t.includes("{{") || t.includes("}}")) return false;
+  if (/^\d{6,}$/.test(t)) return false; // id de campanha usado como nome
+  if (/^(campaign\.name|\(not set\)|null|undefined)$/i.test(t)) return false;
+  return true;
+}
+
 /** Lista de campanhas presentes nos dados (para o filtro). */
 export function campaignsFrom(leads: Lead[], spend: SpendRow[] = []): string[] {
-  return [
-    ...new Set([...leads.map((l) => l.campaign), ...spend.map((s) => s.campaign)]),
-  ]
-    .filter((c) => c && c !== "—")
+  return [...new Set([...leads.map((l) => l.campaign), ...spend.map((s) => s.campaign)])]
+    .filter(isRealCampaign)
     .sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
 
