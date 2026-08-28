@@ -203,13 +203,16 @@ async function persistSecret(key: SecretKey, value: string, label: string) {
 function SecretInput({
   label,
   isSet,
+  value,
+  onChange,
   onSave,
 }: {
   label: string;
   isSet: boolean;
-  onSave: (value: string) => Promise<void>;
+  value: string;
+  onChange: (v: string) => void;
+  onSave: () => Promise<void>;
 }) {
-  const [val, setVal] = useState("");
   const [saving, setSaving] = useState(false);
   return (
     <div className="space-y-1.5">
@@ -221,19 +224,18 @@ function SecretInput({
         <Input
           type="password"
           autoComplete="off"
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
           placeholder={isSet ? "•••••••••• (cole um novo para trocar)" : "Cole o token"}
         />
         <Button
           size="sm"
           variant="outline"
-          disabled={!val || saving}
+          disabled={!value || saving}
           onClick={async () => {
             setSaving(true);
-            await onSave(val);
+            await onSave();
             setSaving(false);
-            setVal("");
           }}
         >
           Salvar
@@ -249,6 +251,7 @@ function IntegrationCard({
   status,
   lastSync,
   syncSource,
+  onBeforeSync,
   children,
 }: {
   name: string;
@@ -256,6 +259,7 @@ function IntegrationCard({
   status: Status;
   lastSync: string;
   syncSource: SyncSource;
+  onBeforeSync?: () => Promise<void>;
   children: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
@@ -263,10 +267,18 @@ function IntegrationCard({
 
   const onSyncNow = async () => {
     setRunning(true);
-    const r = await runSync(syncSource);
-    setRunning(false);
-    if (r.ok) toast.success(`${name}: ${r.message}`);
-    else toast.error(`${name} falhou`, { description: r.message });
+    try {
+      if (onBeforeSync) await onBeforeSync(); // grava o que estiver preenchido na tela
+      const r = await runSync(syncSource);
+      if (r.ok) toast.success(`${name}: ${r.message}`);
+      else toast.error(`${name} falhou`, { description: r.message });
+    } catch (e) {
+      toast.error(`${name} falhou`, {
+        description: e instanceof Error ? e.message : "Erro ao salvar as credenciais",
+      });
+    } finally {
+      setRunning(false);
+    }
   };
 
   return (
@@ -312,8 +324,10 @@ function SettingsPage() {
     gid: "220089555",
   });
   const [metaAccounts, setMetaAccounts] = useState("");
+  const [metaToken, setMetaToken] = useState("");
   const [metaTokenSet, setMetaTokenSet] = useState(false);
   const [ghlLocation, setGhlLocation] = useState("");
+  const [ghlToken, setGhlToken] = useState("");
   const [ghlTokenSet, setGhlTokenSet] = useState(false);
 
   useEffect(() => {
@@ -358,6 +372,24 @@ function SettingsPage() {
       .map((a) => a.trim())
       .filter(Boolean)
       .map((a) => (a.startsWith("act_") ? a : `act_${a}`));
+
+  // grava (sem toast de erro engolido) o que estiver preenchido nos campos
+  const saveMeta = async () => {
+    if (metaToken.trim()) {
+      await saveSecret("meta_access_token", metaToken.trim());
+      setMetaTokenSet(true);
+      setMetaToken("");
+    }
+    await saveConfig("meta_accounts", parseAccounts(metaAccounts));
+  };
+  const saveGhl = async () => {
+    if (ghlToken.trim()) {
+      await saveSecret("ghl_access_token", ghlToken.trim());
+      setGhlTokenSet(true);
+      setGhlToken("");
+    }
+    if (ghlLocation.trim()) await saveConfig("ghl_location_id", { id: ghlLocation.trim() });
+  };
 
   return (
     <div className="min-h-screen">
@@ -437,14 +469,17 @@ function SettingsPage() {
                 status={metaTokenSet ? "conectado" : "desconectado"}
                 lastSync="—"
                 syncSource="meta"
+                onBeforeSync={saveMeta}
               >
                 <SecretInput
                   label="Access Token (longa duração, permissão ads_read)"
                   isSet={metaTokenSet}
-                  onSave={async (v) => {
-                    await persistSecret("meta_access_token", v, "Token do Meta");
+                  value={metaToken}
+                  onChange={setMetaToken}
+                  onSave={() => persistSecret("meta_access_token", metaToken.trim(), "Token do Meta").then(() => {
                     setMetaTokenSet(true);
-                  }}
+                    setMetaToken("");
+                  })}
                 />
                 <div className="space-y-1.5">
                   <Label className="text-xs">
@@ -461,13 +496,19 @@ function SettingsPage() {
                   size="sm"
                   className="bg-brand-gradient text-primary-foreground"
                   onClick={() =>
-                    persist("meta_accounts", parseAccounts(metaAccounts), "Contas do Meta")
+                    saveMeta().then(
+                      () => toast.success("Meta Ads salvo"),
+                      (e) =>
+                        toast.error("Não foi possível salvar", {
+                          description: e instanceof Error ? e.message : "Erro",
+                        }),
+                    )
                   }
                 >
-                  Salvar contas
+                  Salvar
                 </Button>
                 <p className="text-[11px] text-muted-foreground">
-                  Depois clique em <strong>Sincronizar agora</strong> acima. Puxa os últimos 30 dias.
+                  "Sincronizar agora" já salva o que estiver preenchido. Puxa os últimos 30 dias.
                 </p>
               </IntegrationCard>
 
@@ -477,14 +518,17 @@ function SettingsPage() {
                 status={ghlTokenSet ? "conectado" : "desconectado"}
                 lastSync="—"
                 syncSource="ghl"
+                onBeforeSync={saveGhl}
               >
                 <SecretInput
                   label="Private Integration Token"
                   isSet={ghlTokenSet}
-                  onSave={async (v) => {
-                    await persistSecret("ghl_access_token", v, "Token do GHL");
+                  value={ghlToken}
+                  onChange={setGhlToken}
+                  onSave={() => persistSecret("ghl_access_token", ghlToken.trim(), "Token do GHL").then(() => {
                     setGhlTokenSet(true);
-                  }}
+                    setGhlToken("");
+                  })}
                 />
                 <div className="space-y-1.5">
                   <Label className="text-xs">Location ID</Label>
@@ -498,14 +542,20 @@ function SettingsPage() {
                   size="sm"
                   className="bg-brand-gradient text-primary-foreground"
                   onClick={() =>
-                    persist("ghl_location_id", { id: ghlLocation.trim() }, "Location ID")
+                    saveGhl().then(
+                      () => toast.success("GoHighLevel salvo"),
+                      (e) =>
+                        toast.error("Não foi possível salvar", {
+                          description: e instanceof Error ? e.message : "Erro",
+                        }),
+                    )
                   }
                 >
-                  Salvar Location ID
+                  Salvar
                 </Button>
                 <p className="text-[11px] text-muted-foreground">
-                  Usado só para marcar quais criativos geraram venda. Os stages que contam como venda
-                  ficam na aba "Vendas (GHL)".
+                  "Sincronizar agora" já salva o que estiver preenchido. Usado só para marcar quais
+                  criativos geraram venda (stages na aba "Vendas (GHL)").
                 </p>
               </IntegrationCard>
             </div>
