@@ -12,9 +12,9 @@ export async function loadConfig<T>(key: ConfigKey): Promise<T | null> {
   return (data?.value as T) ?? null;
 }
 
-export async function saveConfig(key: ConfigKey, value: unknown) {
+export async function saveConfig(key: ConfigKey, value: Record<string, unknown>) {
   const { error } = await supabase
     .from("app_config")
-    .upsert({ key, value }, { onConflict: "key" });
+    .upsert({ key, value: value as never }, { onConflict: "key" });
   if (error) throw error;
 }
