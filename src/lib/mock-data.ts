@@ -1,61 +1,90 @@
 /**
  * Dados mock determinísticos (seed fixa) — evitam divergência entre SSR e cliente.
- * Serão substituídos pelas tabelas de cache do backend quando as integrações forem ligadas.
+ * Serão substituídos pelas tabelas de cache do backend quando as integrações
+ * (Google Sheets para leads/MQL, Meta Ads para investimento, GoHighLevel para
+ * vendas) forem ligadas em Configurações.
  */
 
-export type FunnelStage =
-  | "lead"
-  | "mql"
-  | "reuniao_agendada"
-  | "reuniao_realizada"
-  | "proposta"
-  | "venda";
+export type LeadGrade = "A" | "B" | "C" | "D";
+
+export type Channel =
+  | "Meta Ads"
+  | "Google Ads"
+  | "Instagram Orgânico"
+  | "TikTok Ads"
+  | "YouTube Ads";
+
+export type Creative = {
+  id: string;
+  name: string;
+  channel: Channel;
+  /** Link para a demo do vídeo do criativo. */
+  videoUrl: string;
+};
 
 export type Lead = {
   id: string;
   date: string; // YYYY-MM-DD
-  seller: string;
-  origin: string;
-  pipeline: string;
+  name: string;
+  channel: Channel;
+  creativeId: string;
+  grade: LeadGrade;
+  /** MQL = leads grade A ou B. */
   isMql: boolean;
-  scheduled: boolean;
-  held: boolean;
-  proposal: boolean;
-  won: boolean;
-  value: number;
-  wonDate: string | null;
-  source: "GHL" | "Planilha";
+  /** Marcado quando o lead virou venda no GoHighLevel. */
+  sold: boolean;
 };
 
-export const SELLERS = [
-  "Ana Beatriz",
-  "Carlos Mendes",
-  "Fernanda Lima",
-  "Rafael Souza",
-  "Juliana Prado",
-];
+export type SpendRow = {
+  date: string; // YYYY-MM-DD
+  creativeId: string;
+  channel: Channel;
+  amount: number;
+};
 
-export const PIPELINES = ["Comercial Inbound", "Comercial Outbound"];
-
-export const ORIGINS = [
+export const CHANNELS: Channel[] = [
   "Meta Ads",
   "Google Ads",
-  "Indicação",
   "Instagram Orgânico",
-  "Prospecção Ativa",
-  "Site / Formulário",
-  "Evento",
+  "TikTok Ads",
+  "YouTube Ads",
 ];
 
-/** Investimento mock por origem no período de 60 dias (Meta Ads / mídia paga). */
-export const ORIGIN_SPEND: Record<string, number> = {
-  "Meta Ads": 38500,
-  "Google Ads": 21400,
-  Indicação: 0,
-  "Instagram Orgânico": 0,
-  "Prospecção Ativa": 6200,
-  "Site / Formulário": 0,
-  Evento: 9800,
+/** Mantido para a aba "Vendas (GHL)" em Configurações. */
+export const PIPELINES = ["Comercial Inbound", "Comercial Outbound"];
+
+const SAMPLE_VIDEO =
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+
+export const CREATIVES: Creative[] = [
+  { id: "cr-01", name: "01 · Depoimento — Ana", channel: "Meta Ads", videoUrl: SAMPLE_VIDEO },
+  { id: "cr-02", name: "02 · VSL Método KP", channel: "Meta Ads", videoUrl: SAMPLE_VIDEO },
+  { id: "cr-03", name: "03 · Antes e Depois", channel: "Meta Ads", videoUrl: SAMPLE_VIDEO },
+  { id: "cr-04", name: "04 · Reels Bastidores", channel: "Instagram Orgânico", videoUrl: SAMPLE_VIDEO },
+  { id: "cr-05", name: "05 · Search — Palavra Marca", channel: "Google Ads", videoUrl: SAMPLE_VIDEO },
+  { id: "cr-06", name: "06 · Search — Concorrente", channel: "Google Ads", videoUrl: SAMPLE_VIDEO },
+  { id: "cr-07", name: "07 · TikTok — Trend de Áudio", channel: "TikTok Ads", videoUrl: SAMPLE_VIDEO },
+  { id: "cr-08", name: "08 · TikTok — POV Cliente", channel: "TikTok Ads", videoUrl: SAMPLE_VIDEO },
+  { id: "cr-09", name: "09 · YouTube — Case 90s", channel: "YouTube Ads", videoUrl: SAMPLE_VIDEO },
+  { id: "cr-10", name: "10 · Carrossel Prova Social", channel: "Meta Ads", videoUrl: SAMPLE_VIDEO },
+];
+
+export const CREATIVE_BY_ID: Record<string, Creative> = Object.fromEntries(
+  CREATIVES.map((c) => [c.id, c]),
+);
+
+/** Investimento diário médio por criativo (R$). 0 = canal orgânico, sem mídia. */
+const CREATIVE_DAILY_SPEND: Record<string, number> = {
+  "cr-01": 90,
+  "cr-02": 130,
+  "cr-03": 80,
+  "cr-04": 0,
+  "cr-05": 70,
+  "cr-06": 50,
+  "cr-07": 60,
+  "cr-08": 70,
+  "cr-09": 110,
+  "cr-10": 85,
 };
 
 function mulberry32(seed: number) {
@@ -82,101 +111,129 @@ export const daysBetween = (a: string, b: string) =>
     (new Date(`${b}T12:00:00Z`).getTime() - new Date(`${a}T12:00:00Z`).getTime()) / 86400000,
   );
 
+export const isoAgo = isoMinusDays;
+
+const FIRST_NAMES = [
+  "Ana", "Bruno", "Carla", "Diego", "Elaine", "Felipe", "Gabriela", "Hugo",
+  "Isabela", "João", "Karina", "Lucas", "Marina", "Nícolas", "Olívia",
+  "Paulo", "Renata", "Sérgio", "Tatiane", "Vitor",
+];
+const LAST_NAMES = [
+  "Silva", "Souza", "Oliveira", "Costa", "Pereira", "Almeida", "Nunes",
+  "Rocha", "Dias", "Barbosa", "Cardoso", "Teixeira",
+];
+
+function mockName(rnd: () => number) {
+  return `${FIRST_NAMES[Math.floor(rnd() * FIRST_NAMES.length)]} ${
+    LAST_NAMES[Math.floor(rnd() * LAST_NAMES.length)]
+  }`;
+}
+
+function buildSpend(): SpendRow[] {
+  const rnd = mulberry32(88011);
+  const rows: SpendRow[] = [];
+  for (let d = 89; d >= 0; d--) {
+    const date = isoMinusDays(TODAY, d);
+    for (const c of CREATIVES) {
+      const base = CREATIVE_DAILY_SPEND[c.id] ?? 0;
+      if (base === 0) continue; // canal orgânico não tem investimento
+      if (rnd() < 0.22) continue; // nem todo criativo roda todo dia
+      rows.push({
+        date,
+        creativeId: c.id,
+        channel: c.channel,
+        amount: Math.round(base * (0.6 + rnd() * 0.9)),
+      });
+    }
+  }
+  return rows;
+}
+
 function buildLeads(): Lead[] {
   const rnd = mulberry32(20260827);
   const leads: Lead[] = [];
-  const total = 168;
+  const total = 420;
 
   for (let i = 0; i < total; i++) {
     const daysAgo = Math.floor(rnd() * 90);
     const date = isoMinusDays(TODAY, daysAgo);
-    const seller = SELLERS[Math.floor(rnd() * SELLERS.length)]!;
-    const origin = ORIGINS[Math.floor(rnd() * ORIGINS.length)]!;
-    const pipeline = rnd() > 0.35 ? PIPELINES[0]! : PIPELINES[1]!;
+    const creative = CREATIVES[Math.floor(rnd() * CREATIVES.length)]!;
 
-    const isMql = rnd() < 0.62;
-    const scheduled = isMql && rnd() < 0.58;
-    const held = scheduled && rnd() < 0.74;
-    const proposal = held && rnd() < 0.66;
-    // vendas só entre leads com maturidade suficiente
-    const won = proposal && daysAgo > 4 && rnd() < 0.42;
-
-    const cycle = 6 + Math.floor(rnd() * 22);
-    const wonDate = won ? isoMinusDays(TODAY, Math.max(0, daysAgo - cycle)) : null;
-    const value = won ? 3500 + Math.round(rnd() * 22) * 500 : 0;
+    const g = rnd();
+    const grade: LeadGrade = g < 0.18 ? "A" : g < 0.42 ? "B" : g < 0.72 ? "C" : "D";
+    const isMql = grade === "A" || grade === "B";
+    const sold = isMql && daysAgo > 5 && rnd() < (grade === "A" ? 0.22 : 0.08);
 
     leads.push({
       id: `lead-${i + 1}`,
       date,
-      seller,
-      origin,
-      pipeline,
+      name: mockName(rnd),
+      channel: creative.channel,
+      creativeId: creative.id,
+      grade,
       isMql,
-      scheduled,
-      held,
-      proposal,
-      won,
-      value,
-      wonDate,
-      source: rnd() < 0.82 ? "GHL" : "Planilha",
+      sold,
     });
   }
   return leads.sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
 export const MOCK_LEADS: Lead[] = buildLeads();
+export const MOCK_SPEND: SpendRow[] = buildSpend();
 
 export type Metrics = {
+  investment: number;
   leads: number;
   mqls: number;
-  scheduled: number;
-  held: number;
-  noShowRate: number;
-  proposals: number;
-  won: number;
-  revenue: number;
-  ticket: number;
-  cycleDays: number;
+  gradeA: number;
+  gradeB: number;
+  gradeC: number;
+  gradeD: number;
+  mqlRate: number; // %
+  cpmql: number;
+  cpl: number;
+  sold: number;
 };
 
-export function computeMetrics(rows: Lead[]): Metrics {
-  const leads = rows.length;
-  const mqls = rows.filter((r) => r.isMql).length;
-  const scheduled = rows.filter((r) => r.scheduled).length;
-  const held = rows.filter((r) => r.held).length;
-  const proposals = rows.filter((r) => r.proposal).length;
-  const wonRows = rows.filter((r) => r.won);
-  const revenue = wonRows.reduce((s, r) => s + r.value, 0);
-  const cycles = wonRows
-    .filter((r) => r.wonDate)
-    .map((r) => Math.max(1, daysBetween(r.date, r.wonDate!)));
+export function computeMetrics(leads: Lead[], spend: SpendRow[]): Metrics {
+  const investment = spend.reduce((s, r) => s + r.amount, 0);
+  const total = leads.length;
+  const gradeA = leads.filter((l) => l.grade === "A").length;
+  const gradeB = leads.filter((l) => l.grade === "B").length;
+  const gradeC = leads.filter((l) => l.grade === "C").length;
+  const gradeD = leads.filter((l) => l.grade === "D").length;
+  const mqls = gradeA + gradeB;
 
   return {
-    leads,
+    investment,
+    leads: total,
     mqls,
-    scheduled,
-    held,
-    noShowRate: scheduled === 0 ? 0 : ((scheduled - held) / scheduled) * 100,
-    proposals,
-    won: wonRows.length,
-    revenue,
-    ticket: wonRows.length === 0 ? 0 : revenue / wonRows.length,
-    cycleDays: cycles.length === 0 ? 0 : cycles.reduce((s, c) => s + c, 0) / cycles.length,
+    gradeA,
+    gradeB,
+    gradeC,
+    gradeD,
+    mqlRate: total === 0 ? 0 : (mqls / total) * 100,
+    cpmql: mqls === 0 ? 0 : investment / mqls,
+    cpl: total === 0 ? 0 : investment / total,
+    sold: leads.filter((l) => l.sold).length,
   };
 }
 
-export function filterLeads(opts: {
-  from: string;
-  to: string;
-  seller: string;
-  pipeline: string;
-}): Lead[] {
+export function filterLeads(opts: { from: string; to: string; channel: string }): Lead[] {
   return MOCK_LEADS.filter(
     (l) =>
       l.date >= opts.from &&
       l.date <= opts.to &&
-      (opts.seller === "todos" || l.seller === opts.seller) &&
-      (opts.pipeline === "todos" || l.pipeline === opts.pipeline),
+      (opts.channel === "todos" || l.channel === opts.channel),
+  );
+}
+
+export function filterSpend(opts: { from: string; to: string; channel: string }): SpendRow[] {
+  return MOCK_SPEND.filter(
+    (r) =>
+      r.date >= opts.from &&
+      r.date <= opts.to &&
+      (opts.channel === "todos" || r.channel === opts.channel),
   );
 }
 
@@ -185,24 +242,27 @@ export function shiftRange(from: string, to: string) {
   return { from: isoMinusDays(from, span), to: isoMinusDays(to, span) };
 }
 
-export const isoAgo = isoMinusDays;
+export type TimePoint = { date: string; leads: number; mqls: number };
 
-export function buildTimeSeries(rows: Lead[], from: string, to: string, gran: "dia" | "semana" | "mes") {
-  const buckets = new Map<string, { date: string; leads: number; revenue: number }>();
+export function buildTimeSeries(
+  leads: Lead[],
+  from: string,
+  to: string,
+  gran: "dia" | "semana" | "mes",
+): TimePoint[] {
+  const buckets = new Map<string, TimePoint>();
   const span = daysBetween(from, to);
 
   for (let i = 0; i <= span; i++) {
     const d = isoMinusDays(to, span - i);
     const key = bucketKey(d, gran);
-    if (!buckets.has(key)) buckets.set(key, { date: key, leads: 0, revenue: 0 });
+    if (!buckets.has(key)) buckets.set(key, { date: key, leads: 0, mqls: 0 });
   }
-  for (const r of rows) {
-    const b = buckets.get(bucketKey(r.date, gran));
-    if (b) b.leads += 1;
-    if (r.won && r.wonDate) {
-      const wb = buckets.get(bucketKey(r.wonDate, gran));
-      if (wb) wb.revenue += r.value;
-    }
+  for (const l of leads) {
+    const b = buckets.get(bucketKey(l.date, gran));
+    if (!b) continue;
+    b.leads += 1;
+    if (l.isMql) b.mqls += 1;
   }
   return [...buckets.values()];
 }
@@ -214,4 +274,85 @@ function bucketKey(iso: string, gran: "dia" | "semana" | "mes") {
   const dow = d.getUTCDay();
   d.setUTCDate(d.getUTCDate() - ((dow + 6) % 7));
   return d.toISOString().slice(0, 10);
+}
+
+export type CreativeStats = {
+  creative: Creative;
+  leads: number;
+  mqls: number;
+  gradeA: number;
+  gradeB: number;
+  gradeC: number;
+  gradeD: number;
+  mqlRate: number; // %
+  investment: number;
+  cpmql: number;
+  sold: boolean;
+  leadList: Lead[];
+};
+
+export function creativeBreakdown(leads: Lead[], spend: SpendRow[]): CreativeStats[] {
+  const spendByCreative = new Map<string, number>();
+  for (const r of spend) {
+    spendByCreative.set(r.creativeId, (spendByCreative.get(r.creativeId) ?? 0) + r.amount);
+  }
+
+  const leadsByCreative = new Map<string, Lead[]>();
+  for (const l of leads) {
+    const arr = leadsByCreative.get(l.creativeId) ?? [];
+    arr.push(l);
+    leadsByCreative.set(l.creativeId, arr);
+  }
+
+  const ids = new Set<string>([...leadsByCreative.keys(), ...spendByCreative.keys()]);
+
+  return [...ids]
+    .map((id) => {
+      const creative = CREATIVE_BY_ID[id] ?? {
+        id,
+        name: id,
+        channel: "Meta Ads" as Channel,
+        videoUrl: SAMPLE_VIDEO,
+      };
+      const list = (leadsByCreative.get(id) ?? []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+      const gradeA = list.filter((l) => l.grade === "A").length;
+      const gradeB = list.filter((l) => l.grade === "B").length;
+      const gradeC = list.filter((l) => l.grade === "C").length;
+      const gradeD = list.filter((l) => l.grade === "D").length;
+      const mqls = gradeA + gradeB;
+      const investment = spendByCreative.get(id) ?? 0;
+      return {
+        creative,
+        leads: list.length,
+        mqls,
+        gradeA,
+        gradeB,
+        gradeC,
+        gradeD,
+        mqlRate: list.length === 0 ? 0 : (mqls / list.length) * 100,
+        investment,
+        cpmql: mqls === 0 ? 0 : investment / mqls,
+        sold: list.some((l) => l.sold),
+        leadList: list,
+      };
+    })
+    .sort((a, b) => b.leads - a.leads);
+}
+
+export type ChannelStats = { channel: string; qty: number; cost: number };
+
+export function channelBreakdown(leads: Lead[], spend: SpendRow[]): ChannelStats[] {
+  const qty = new Map<string, number>();
+  const cost = new Map<string, number>();
+  for (const l of leads) qty.set(l.channel, (qty.get(l.channel) ?? 0) + 1);
+  for (const r of spend) cost.set(r.channel, (cost.get(r.channel) ?? 0) + r.amount);
+
+  const channels = new Set<string>([...qty.keys(), ...cost.keys()]);
+  return [...channels]
+    .map((channel) => {
+      const n = qty.get(channel) ?? 0;
+      const spent = cost.get(channel) ?? 0;
+      return { channel, qty: n, cost: n > 0 ? spent / n : 0 };
+    })
+    .sort((a, b) => b.qty - a.qty);
 }

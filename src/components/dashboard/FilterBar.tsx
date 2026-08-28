@@ -21,8 +21,7 @@ import { dateLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type Filters = {
-  seller: string;
-  pipeline: string;
+  channel: string;
   from: string;
   to: string;
   preset: number | null;
@@ -65,16 +64,14 @@ function Select({
 
 export function FilterBar({
   filters,
-  sellers,
-  pipelines,
+  channels,
   syncing,
   onChange,
   onPreset,
   onSync,
 }: {
   filters: Filters;
-  sellers: string[];
-  pipelines: string[];
+  channels: string[];
   syncing: string | null;
   onChange: (patch: Partial<Filters>) => void;
   onPreset: (days: number) => void;
@@ -83,16 +80,10 @@ export function FilterBar({
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-3">
       <Select
-        label="Vendedor"
-        value={filters.seller}
-        options={sellers}
-        onChange={(seller) => onChange({ seller })}
-      />
-      <Select
-        label="Pipeline"
-        value={filters.pipeline}
-        options={pipelines}
-        onChange={(pipeline) => onChange({ pipeline })}
+        label="Canal"
+        value={filters.channel}
+        options={channels}
+        onChange={(channel) => onChange({ channel })}
       />
 
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">

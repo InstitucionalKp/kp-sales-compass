@@ -10,7 +10,7 @@ export function AppHeader({ right }: { right?: React.ReactNode }) {
             KP
           </span>
           <span className="text-sm font-semibold tracking-tight sm:text-base">
-            KP Assessoria <span className="text-muted-foreground">— Dashboard Comercial</span>
+            KP Assessoria <span className="text-muted-foreground">— Dashboard de Marketing</span>
           </span>
         </Link>
         <div className="ml-auto flex items-center gap-2">{right}</div>

@@ -37,12 +37,12 @@ export const Route = createFileRoute("/configuracoes")({
       {
         name: "description",
         content:
-          "Configure integrações Meta Ads, GoHighLevel e Google Sheets, mapeamentos de funil e metas comerciais.",
+          "Configure integrações Meta Ads, GoHighLevel e Google Sheets, mapeamento da planilha, marcação de vendas e metas de marketing.",
       },
       { property: "og:title", content: "Configurações | KP Assessoria" },
       {
         property: "og:description",
-        content: "Integrações, mapeamento de funil e planilha, fontes de KPI e metas da KP Assessoria.",
+        content: "Integrações, mapeamento da planilha, vendas do GHL, fontes de KPI e metas da KP Assessoria.",
       },
     ],
   }),
@@ -51,23 +51,13 @@ export const Route = createFileRoute("/configuracoes")({
 
 const TABS = [
   { id: "integracoes", label: "Integrações", icon: Layers },
-  { id: "funil", label: "Mapeamento do Funil", icon: Workflow },
   { id: "planilha", label: "Mapeamento da Planilha", icon: Table2 },
+  { id: "vendas", label: "Vendas (GHL)", icon: Workflow },
   { id: "kpis", label: "Fontes dos KPIs", icon: GitBranch },
   { id: "metas", label: "Metas", icon: Target },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
-
-const FUNNEL_OPTIONS = [
-  "Lead",
-  "MQL",
-  "Reunião Agendada",
-  "Reunião Realizada",
-  "Proposta",
-  "Venda",
-  "Ignorar",
-];
 
 const GHL_STAGES = [
   "Novo Lead",
@@ -81,25 +71,25 @@ const GHL_STAGES = [
   "Perdido",
 ];
 
+const VENDA_OPTIONS = ["Conta como venda", "Ignorar"];
+
 const SHEET_HEADERS = [
   "Data",
-  "Nome do Lead",
+  "Nome",
   "Canal",
-  "Responsável",
-  "Status",
+  "Criativo",
+  "Grade",
   "MQL?",
-  "Valor Proposta",
-  "Obs",
+  "Observação",
 ];
 
 const INTERNAL_FIELDS = [
   "Data",
-  "Nome",
-  "Origem",
-  "Vendedor",
-  "Etapa",
-  "É_MQL",
-  "Valor",
+  "Nome do Lead",
+  "Canal",
+  "Criativo",
+  "Grade (A/B/C/D)",
+  "É MQL",
   "Observação",
 ];
 
@@ -221,15 +211,15 @@ function SecretField({ label, hint }: { label: string; hint?: string }) {
 
 function SettingsPage() {
   const [tab, setTab] = useState<TabId>("integracoes");
-  const [stageMap, setStageMap] = useState<Record<string, string>>(() =>
-    Object.fromEntries(GHL_STAGES.map((s) => [s, "Ignorar"])),
+  const [vendaMap, setVendaMap] = useState<Record<string, string>>(() =>
+    Object.fromEntries(GHL_STAGES.map((s) => [s, s === "Ganho" ? "Conta como venda" : "Ignorar"])),
   );
   const [colMap, setColMap] = useState<Record<string, string>>(() =>
     Object.fromEntries(INTERNAL_FIELDS.map((f, i) => [f, SHEET_HEADERS[i] ?? "—"])),
   );
-  const [kpiSources, setKpiSources] = useState({ Leads: "GHL", MQLs: "Planilha" });
+  const [kpiSources, setKpiSources] = useState({ Leads: "Planilha", MQL: "Planilha" });
   const [pipeline, setPipeline] = useState(PIPELINES[0]!);
-  const [goals, setGoals] = useState({ revenue: "250000", sales: "20" });
+  const [goals, setGoals] = useState({ mql: "120", cpmql: "300", investimento: "20000" });
 
   return (
     <div className="min-h-screen">
@@ -267,6 +257,30 @@ function SettingsPage() {
 
           {tab === "integracoes" ? (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+              <IntegrationCard name="Google Sheets" icon={FileSpreadsheet} status="desconectado" lastSync="—">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">JSON da Service Account</Label>
+                  <Textarea rows={4} placeholder='{"type":"service_account", ...}' />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">ID da Planilha</Label>
+                  <Input placeholder="1AbC..." />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Aba</Label>
+                    <Input placeholder="Leads" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Range</Label>
+                    <Input placeholder="Leads!A1:G" />
+                  </div>
+                </div>
+                <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
+                  Testar conexão
+                </Button>
+              </IntegrationCard>
+
               <IntegrationCard name="Meta Ads" icon={Megaphone} status="desconectado" lastSync="—">
                 <SecretField label="Access Token (longa duração)" />
                 <div className="space-y-1.5">
@@ -288,6 +302,9 @@ function SettingsPage() {
                   <Label className="text-xs">Location ID</Label>
                   <Input placeholder="loc_xxxxxxxx" />
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Usado só para marcar quais criativos geraram venda.
+                </p>
                 <div className="flex gap-2">
                   <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
                     Testar conexão
@@ -297,61 +314,6 @@ function SettingsPage() {
                   </Button>
                 </div>
               </IntegrationCard>
-
-              <IntegrationCard
-                name="Google Sheets"
-                icon={FileSpreadsheet}
-                status="desconectado"
-                lastSync="—"
-              >
-                <div className="space-y-1.5">
-                  <Label className="text-xs">JSON da Service Account</Label>
-                  <Textarea rows={4} placeholder='{"type":"service_account", ...}' />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">ID da Planilha</Label>
-                  <Input placeholder="1AbC..." />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Aba</Label>
-                    <Input placeholder="Leads" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Range</Label>
-                    <Input placeholder="Leads!A1:H" />
-                  </div>
-                </div>
-                <Button size="sm" className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
-                  Testar conexão
-                </Button>
-              </IntegrationCard>
-            </div>
-          ) : null}
-
-          {tab === "funil" ? (
-            <div className="panel space-y-3 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Mapeie cada stage do pipeline do GHL para uma etapa do funil.
-                </p>
-                <Picker value={pipeline} options={PIPELINES} onChange={setPipeline} />
-              </div>
-              <div className="divide-y divide-border">
-                {GHL_STAGES.map((s) => (
-                  <div key={s} className="flex items-center justify-between gap-3 py-2.5">
-                    <span className="text-sm">{s}</span>
-                    <Picker
-                      value={stageMap[s] ?? "Ignorar"}
-                      options={FUNNEL_OPTIONS}
-                      onChange={(v) => setStageMap((m) => ({ ...m, [s]: v }))}
-                    />
-                  </div>
-                ))}
-              </div>
-              <Button className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
-                Salvar mapeamento
-              </Button>
             </div>
           ) : null}
 
@@ -367,13 +329,42 @@ function SettingsPage() {
                     <Picker
                       value={colMap[f] ?? "—"}
                       options={["—", ...SHEET_HEADERS]}
-                      onChange={(v) => setColMap((m) => ({ ...m, [f]: v }))}
+                      onChange={(v) => setColMap((mp) => ({ ...mp, [f]: v }))}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                MQL é derivado da coluna Grade: leads A e B contam como MQL.
+              </p>
+              <Button className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
+                Salvar mapeamento
+              </Button>
+            </div>
+          ) : null}
+
+          {tab === "vendas" ? (
+            <div className="panel space-y-3 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Escolha quais stages do pipeline do GHL contam como venda fechada.
+                </p>
+                <Picker value={pipeline} options={PIPELINES} onChange={setPipeline} />
+              </div>
+              <div className="divide-y divide-border">
+                {GHL_STAGES.map((s) => (
+                  <div key={s} className="flex items-center justify-between gap-3 py-2.5">
+                    <span className="text-sm">{s}</span>
+                    <Picker
+                      value={vendaMap[s] ?? "Ignorar"}
+                      options={VENDA_OPTIONS}
+                      onChange={(v) => setVendaMap((mp) => ({ ...mp, [s]: v }))}
                     />
                   </div>
                 ))}
               </div>
               <Button className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>
-                Salvar mapeamento
+                Salvar
               </Button>
             </div>
           ) : null}
@@ -381,14 +372,14 @@ function SettingsPage() {
           {tab === "kpis" ? (
             <div className="panel space-y-3 p-4">
               <p className="text-sm text-muted-foreground">
-                Fonte padrão para os KPIs que existem em mais de uma origem.
+                Fonte padrão para os KPIs que podem vir de mais de uma origem.
               </p>
-              {(["Leads", "MQLs"] as const).map((k) => (
+              {(["Leads", "MQL"] as const).map((k) => (
                 <div key={k} className="flex items-center justify-between gap-3 border-t border-border py-2.5">
                   <span className="text-sm">{k}</span>
                   <Picker
                     value={kpiSources[k]}
-                    options={["GHL", "Planilha"]}
+                    options={["Planilha", "GoHighLevel"]}
                     onChange={(v) => setKpiSources((s) => ({ ...s, [k]: v }))}
                   />
                 </div>
@@ -402,19 +393,27 @@ function SettingsPage() {
           {tab === "metas" ? (
             <div className="panel max-w-md space-y-4 p-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">Meta mensal de Receita (R$)</Label>
+                <Label className="text-xs">Meta mensal de MQL (nº)</Label>
                 <Input
                   inputMode="numeric"
-                  value={goals.revenue}
-                  onChange={(e) => setGoals((g) => ({ ...g, revenue: e.target.value }))}
+                  value={goals.mql}
+                  onChange={(e) => setGoals((g) => ({ ...g, mql: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Meta mensal de Vendas (nº)</Label>
+                <Label className="text-xs">CPMQL alvo (R$)</Label>
                 <Input
                   inputMode="numeric"
-                  value={goals.sales}
-                  onChange={(e) => setGoals((g) => ({ ...g, sales: e.target.value }))}
+                  value={goals.cpmql}
+                  onChange={(e) => setGoals((g) => ({ ...g, cpmql: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Investimento previsto no mês (R$)</Label>
+                <Input
+                  inputMode="numeric"
+                  value={goals.investimento}
+                  onChange={(e) => setGoals((g) => ({ ...g, investimento: e.target.value }))}
                 />
               </div>
               <Button className="bg-brand-gradient text-primary-foreground" onClick={notConnected}>

@@ -1,6 +1,6 @@
 import { brl, num } from "@/lib/format";
 
-export type OriginRow = { origin: string; qty: number; cost: number };
+export type OriginRow = { label: string; qty: number; cost: number };
 
 export function OriginTable({
   title,
@@ -9,7 +9,7 @@ export function OriginTable({
 }: {
   title: string;
   rows: OriginRow[];
-  costLabel: "CPL" | "CAC";
+  costLabel: string;
 }) {
   const max = Math.max(1, ...rows.map((r) => r.qty));
 
@@ -21,14 +21,14 @@ export function OriginTable({
           <thead className="text-[11px] tracking-wide text-muted-foreground uppercase">
             <tr>
               <th className="w-8 pb-2 text-left font-medium">#</th>
-              <th className="pb-2 text-left font-medium">Origem</th>
+              <th className="pb-2 text-left font-medium">Canal</th>
               <th className="pb-2 text-left font-medium">Info</th>
               <th className="pb-2 text-right font-medium">Qtd.</th>
             </tr>
           </thead>
           <tbody>
             {rows.slice(0, 10).map((r, i) => (
-              <tr key={r.origin} className="border-t border-border/60">
+              <tr key={r.label} className="border-t border-border/60">
                 <td className="py-2 text-xs text-muted-foreground">{i + 1}</td>
                 <td className="py-2">
                   <div className="flex items-center gap-2">
@@ -36,7 +36,7 @@ export function OriginTable({
                       className="bg-brand-gradient h-5 w-1.5 shrink-0 rounded-full"
                       style={{ opacity: 0.35 + (r.qty / max) * 0.65 }}
                     />
-                    <span className="truncate">{r.origin}</span>
+                    <span className="truncate">{r.label}</span>
                   </div>
                 </td>
                 <td className="py-2 text-xs text-muted-foreground">

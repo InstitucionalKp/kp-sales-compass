@@ -8,10 +8,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { brl, ddmm, dateLabel, num } from "@/lib/format";
+import { ddmm, dateLabel, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-export type Point = { date: string; leads: number; revenue: number };
+export type Point = { date: string; leads: number; mqls: number };
 export type Granularity = "dia" | "semana" | "mes";
 
 export function EvolutionChart({
@@ -53,9 +53,9 @@ export function EvolutionChart({
                 <stop offset="0%" stopColor="var(--chart-lead)" stopOpacity={0.35} />
                 <stop offset="100%" stopColor="var(--chart-lead)" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--chart-revenue)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="var(--chart-revenue)" stopOpacity={0} />
+              <linearGradient id="gMql" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--brand-2)" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="var(--brand-2)" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid stroke="var(--border)" vertical={false} />
@@ -69,22 +69,12 @@ export function EvolutionChart({
               minTickGap={24}
             />
             <YAxis
-              yAxisId="left"
-              stroke="var(--chart-lead)"
+              stroke="var(--muted-foreground)"
               fontSize={11}
               tickLine={false}
               axisLine={false}
               width={38}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              stroke="var(--chart-revenue)"
-              fontSize={11}
-              tickLine={false}
-              axisLine={false}
-              width={64}
-              tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
+              allowDecimals={false}
             />
             <Tooltip
               contentStyle={{
@@ -94,29 +84,24 @@ export function EvolutionChart({
                 fontSize: 12,
               }}
               labelFormatter={(l: string) => dateLabel(l)}
-              formatter={(value: number, name: string) => [
-                name === "Leads" ? num(value) : brl(value),
-                name,
-              ]}
+              formatter={(value: number, name: string) => [num(value), name]}
             />
             <Legend verticalAlign="bottom" height={28} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
             <Area
-              yAxisId="left"
               type="monotone"
               dataKey="leads"
-              name="Leads"
+              name="Leads Tráfego"
               stroke="var(--chart-lead)"
               strokeWidth={2}
               fill="url(#gLeads)"
             />
             <Area
-              yAxisId="right"
               type="monotone"
-              dataKey="revenue"
-              name="Receita Fechada (R$)"
-              stroke="var(--chart-revenue)"
+              dataKey="mqls"
+              name="MQL"
+              stroke="var(--brand-2)"
               strokeWidth={2}
-              fill="url(#gRev)"
+              fill="url(#gMql)"
             />
           </ComposedChart>
         </ResponsiveContainer>
