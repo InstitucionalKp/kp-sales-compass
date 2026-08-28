@@ -73,87 +73,76 @@ function MiniTable({
   const total = metric === "roi" ? 0 : data.reduce((s, d) => s + d.value, 0);
   const maxBar = Math.max(1, ...data.map((d) => Math.abs(d.value)));
 
+  const valueLabel = metric === "roi" ? "ROI" : "Qtd";
+  const trailLabel = metric === "roi" ? "Receita" : "%";
+
   return (
-    <div className="panel flex h-full flex-col p-4">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-        <Icon className="size-4" style={{ color: accent }} />
+    <div className="panel flex h-full min-w-0 flex-col p-4">
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <Icon className="size-4 shrink-0" style={{ color: accent }} />
         {title}
       </h2>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[380px] text-sm">
-          <thead className="text-[11px] tracking-wide text-muted-foreground uppercase">
-            <tr>
-              <th className="w-6 pb-2 text-left font-medium">#</th>
-              <th className="pb-2 text-left font-medium">Criativo</th>
-              <th className="pb-2 text-right font-medium">Info</th>
-              <th className="pb-2 text-right font-medium">{metric === "roi" ? "ROI" : "Qtd"}</th>
-              <th className="pb-2 text-right font-medium">{metric === "roi" ? "Receita" : "%"}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((d, i) => {
-              const r = d.row;
-              const info =
-                metric === "leads"
-                  ? `CPL: ${brl(r.cpl)}`
-                  : metric === "mqls"
-                    ? `CPMQL: ${brl(r.cpmql)}`
-                    : `Inv: ${brl(r.investment)}`;
-              return (
-                <tr
-                  key={r.name}
-                  className="cursor-pointer border-t border-border/60 hover:bg-muted/30"
-                  onClick={() => onSelect(r)}
-                >
-                  <td className="py-2 text-xs text-muted-foreground">{i + 1}</td>
-                  <td className="py-2">
-                    <div className="flex items-center gap-2">
-                      <Dot on={r.sold} />
-                      <span className="relative block min-w-0 flex-1">
-                        <span
-                          className="pointer-events-none absolute inset-y-0 left-0 rounded-sm"
-                          style={{
-                            width: `${(Math.abs(d.value) / maxBar) * 100}%`,
-                            backgroundColor: accent,
-                            opacity: 0.16,
-                          }}
-                        />
-                        <span className="relative block truncate">{r.name}</span>
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-2 text-right text-[11px] whitespace-nowrap text-muted-foreground">
-                    {info}
-                  </td>
-                  <td
-                    className={cn(
-                      "py-2 text-right font-semibold tabular-nums",
-                      metric === "roi" && (d.value >= 0 ? "text-success" : "text-destructive"),
-                    )}
-                  >
-                    {metric === "roi"
-                      ? `${d.value > 0 ? "+" : ""}${d.value.toFixed(0)}%`
-                      : num(d.value)}
-                  </td>
-                  <td className="py-2 text-right tabular-nums text-muted-foreground">
-                    {metric === "roi"
-                      ? brl(r.revenue)
-                      : total === 0
-                        ? "—"
-                        : pct((d.value / total) * 100, 0)}
-                  </td>
-                </tr>
-              );
-            })}
-            {data.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="py-6 text-center text-muted-foreground">
-                  •••
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+
+      <div className="flex items-center gap-2 pb-1 text-[10px] tracking-wide text-muted-foreground uppercase">
+        <span className="w-4 shrink-0">#</span>
+        <span className="flex-1">Criativo</span>
+        <span className="w-12 shrink-0 text-right">{valueLabel}</span>
+        <span className="w-16 shrink-0 text-right">{trailLabel}</span>
+      </div>
+
+      <div className="max-h-[360px] overflow-y-auto">
+        {data.map((d, i) => {
+          const r = d.row;
+          const info =
+            metric === "leads"
+              ? `CPL ${brl(r.cpl)}`
+              : metric === "mqls"
+                ? `CPMQL ${brl(r.cpmql)}`
+                : `Inv. ${brl(r.investment)}`;
+          return (
+            <button
+              key={r.name}
+              type="button"
+              onClick={() => onSelect(r)}
+              className="flex w-full items-center gap-2 border-t border-border/60 py-2 text-left transition-colors hover:bg-muted/30"
+            >
+              <span className="w-4 shrink-0 text-xs text-muted-foreground">{i + 1}</span>
+              <Dot on={r.sold} />
+              <span className="min-w-0 flex-1">
+                <span className="relative block">
+                  <span
+                    className="pointer-events-none absolute inset-y-0 left-0 rounded-sm"
+                    style={{
+                      width: `${(Math.abs(d.value) / maxBar) * 100}%`,
+                      backgroundColor: accent,
+                      opacity: 0.16,
+                    }}
+                  />
+                  <span className="relative block truncate text-sm">{r.name}</span>
+                </span>
+                <span className="block truncate text-[10px] text-muted-foreground">{info}</span>
+              </span>
+              <span
+                className={cn(
+                  "w-12 shrink-0 text-right text-sm font-semibold tabular-nums",
+                  metric === "roi" && (d.value >= 0 ? "text-success" : "text-destructive"),
+                )}
+              >
+                {metric === "roi" ? `${d.value > 0 ? "+" : ""}${d.value.toFixed(0)}%` : num(d.value)}
+              </span>
+              <span className="w-16 shrink-0 truncate text-right text-xs text-muted-foreground tabular-nums">
+                {metric === "roi"
+                  ? brl(r.revenue)
+                  : total === 0
+                    ? "—"
+                    : pct((d.value / total) * 100, 0)}
+              </span>
+            </button>
+          );
+        })}
+        {data.length === 0 ? (
+          <p className="border-t border-border/60 py-6 text-center text-muted-foreground">•••</p>
+        ) : null}
       </div>
     </div>
   );

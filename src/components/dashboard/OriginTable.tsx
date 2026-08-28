@@ -14,9 +14,9 @@ export function OriginTable({
   const max = Math.max(1, ...rows.map((r) => r.qty));
 
   return (
-    <div className="panel flex h-full flex-col p-4">
+    <div className="panel flex h-full min-w-0 flex-col p-4">
       <h2 className="mb-3 text-sm font-semibold">{title}</h2>
-      <div className="max-h-[300px] overflow-y-auto">
+      <div className="max-h-[300px] overflow-x-hidden overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="text-[11px] tracking-wide text-muted-foreground uppercase">
             <tr>
