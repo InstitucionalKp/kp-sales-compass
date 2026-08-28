@@ -125,10 +125,10 @@ Deno.serve(async (req: Request) => {
       source: "meta",
       status: "ok",
       last_run_at: new Date().toISOString(),
-      rows: records.length,
+      rows: unique.length,
       message: null,
     });
-    return json({ ok: true, rows: records.length });
+    return json({ ok: true, rows: unique.length });
   } catch (e) {
     const err = e as { message?: string; details?: string; hint?: string; code?: string };
     const message = e instanceof Error
