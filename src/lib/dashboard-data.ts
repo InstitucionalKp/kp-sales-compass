@@ -47,7 +47,9 @@ function dbToLead(r: LeadRow): Lead {
     isMql: r.is_mql,
     mqlFlag: r.mql_flag,
     meetingStatus: r.status_reuniao ?? "",
+    vende: r.vende ?? "",
     sold: r.sold,
+    saleValue: Number(r.sale_value ?? 0),
   };
 }
 
@@ -58,6 +60,8 @@ function dbToSpend(r: MetaRow): SpendRow {
     campaign: r.campanha ?? "—",
     channel: "Meta Ads",
     amount: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
   };
 }
 

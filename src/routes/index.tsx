@@ -9,7 +9,7 @@ import { GoalBar } from "@/components/dashboard/GoalBar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { RateCard } from "@/components/dashboard/RateCard";
 import { GradeBreakdownCard } from "@/components/dashboard/GradeBreakdownCard";
-import { CreativeContribTable } from "@/components/dashboard/CreativeContribTable";
+import { CreativeSection } from "@/components/dashboard/CreativeSection";
 import { OriginTable, type OriginRow } from "@/components/dashboard/OriginTable";
 import { EvolutionChart } from "@/components/dashboard/EvolutionChart";
 import type { Granularity } from "@/lib/dashboard-search";
@@ -230,18 +230,7 @@ function Dashboard() {
           <RateCard label="Taxa de MQL %" value={pct(m.mqlRate)} delta={m.mqlRate - p.mqlRate} />
         </section>
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <CreativeContribTable
-            title="Criativos que trouxeram Leads"
-            rows={creatives}
-            metric="leads"
-          />
-          <CreativeContribTable
-            title="Criativos que trouxeram MQL"
-            rows={creatives}
-            metric="mqls"
-          />
-        </section>
+        <CreativeSection rows={creatives} />
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <OriginTable title="Leads por Canal" rows={channelRows} costLabel="CPL" />

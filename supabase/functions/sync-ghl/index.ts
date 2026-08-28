@@ -17,6 +17,7 @@ type Opp = {
   id: string;
   status: string;
   pipelineStageId?: string;
+  monetaryValue?: number;
   contact?: { email?: string; phone?: string };
   createdAt?: string;
   lastStatusChangeAt?: string;
@@ -94,28 +95,47 @@ Deno.serve(async (req: Request) => {
       ? won.filter((o) => o.status === "won" || (o.pipelineStageId && saleStages.has(o.pipelineStageId)))
       : won;
 
-    const emailSet = new Set(filtered.map((o) => (o.contact?.email ?? "").toLowerCase()).filter(Boolean));
-    const phoneSet = new Set(filtered.map((o) => phoneKey(o.contact?.phone)).filter(Boolean));
+    // mapa chave-de-contato -> maior valor de venda encontrado
+    const valueByEmail = new Map<string, number>();
+    const valueByPhone = new Map<string, number>();
+    for (const o of filtered) {
+      const v = Number(o.monetaryValue ?? 0) || 0;
+      const em = (o.contact?.email ?? "").toLowerCase();
+      const ph = phoneKey(o.contact?.phone);
+      if (em) valueByEmail.set(em, Math.max(valueByEmail.get(em) ?? 0, v));
+      if (ph) valueByPhone.set(ph, Math.max(valueByPhone.get(ph) ?? 0, v));
+    }
 
     const { data: leads, error: leadsErr } = await supabase
       .from("leads")
       .select("id, email, contato");
     if (leadsErr) throw leadsErr;
 
-    const matched = (leads ?? [])
-      .filter(
-        (l: { email: string | null; contato: string | null }) =>
-          (l.email && emailSet.has(l.email.toLowerCase())) ||
-          (phoneKey(l.contato) && phoneSet.has(phoneKey(l.contato))),
-      )
-      .map((l: { id: string }) => l.id);
+    // agrupa por valor pra fazer poucos UPDATEs
+    const now = new Date().toISOString();
+    const byValue = new Map<number, string[]>();
+    for (const l of (leads ?? []) as { id: string; email: string | null; contato: string | null }[]) {
+      const em = (l.email ?? "").toLowerCase();
+      const ph = phoneKey(l.contato);
+      const hasEmail = em && valueByEmail.has(em);
+      const hasPhone = ph && valueByPhone.has(ph);
+      if (!hasEmail && !hasPhone) continue;
+      const value = Math.max(
+        hasEmail ? (valueByEmail.get(em) ?? 0) : 0,
+        hasPhone ? (valueByPhone.get(ph) ?? 0) : 0,
+      );
+      const arr = byValue.get(value) ?? [];
+      arr.push(l.id);
+      byValue.set(value, arr);
+    }
 
-    if (matched.length) {
-      for (let i = 0; i < matched.length; i += 500) {
+    const matched = [...byValue.values()].flat();
+    for (const [value, ids] of byValue) {
+      for (let i = 0; i < ids.length; i += 500) {
         const { error } = await supabase
           .from("leads")
-          .update({ sold: true, sold_at: new Date().toISOString() })
-          .in("id", matched.slice(i, i + 500));
+          .update({ sold: true, sold_at: now, sale_value: value })
+          .in("id", ids.slice(i, i + 500));
         if (error) throw error;
       }
     }

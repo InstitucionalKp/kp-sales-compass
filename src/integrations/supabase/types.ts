@@ -51,10 +51,12 @@ export type Database = {
           origem: string | null
           qualificacao: string | null
           raw: Json | null
+          sale_value: number
           sold: boolean
           sold_at: string | null
           status_reuniao: string | null
           synced_at: string
+          vende: string | null
         }
         Insert: {
           campanha?: string | null
@@ -74,10 +76,12 @@ export type Database = {
           origem?: string | null
           qualificacao?: string | null
           raw?: Json | null
+          sale_value?: number
           sold?: boolean
           sold_at?: string | null
           status_reuniao?: string | null
           synced_at?: string
+          vende?: string | null
         }
         Update: {
           campanha?: string | null
@@ -97,10 +101,12 @@ export type Database = {
           origem?: string | null
           qualificacao?: string | null
           raw?: Json | null
+          sale_value?: number
           sold?: boolean
           sold_at?: string | null
           status_reuniao?: string | null
           synced_at?: string
+          vende?: string | null
         }
         Relationships: []
       }

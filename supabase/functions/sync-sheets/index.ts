@@ -62,6 +62,7 @@ const DEFAULT_COL_MAP: Record<string, string> = {
   campanha: "CAMPANHA",
   criativo: "CRIATIVO",
   conjunto: "CONJUNTO",
+  vende: "O QUE ELE VENDE",
   data: "DATA",
   hora: "HORA",
 };
@@ -156,7 +157,8 @@ Deno.serve(async (req: Request) => {
       nome: idx("nome"), contato: idx("contato"), email: idx("email"), empresa: idx("empresa"),
       cargo: idx("cargo"), status_reuniao: idx("status_reuniao"), mql_flag: idx("mql_flag"),
       qualificacao: idx("qualificacao"), origem: idx("origem"), campanha: idx("campanha"),
-      criativo: idx("criativo"), conjunto: idx("conjunto"), data: idx("data"), hora: idx("hora"),
+      criativo: idx("criativo"), conjunto: idx("conjunto"), vende: idx("vende"),
+      data: idx("data"), hora: idx("hora"),
     };
 
     const get = (r: string[], i: number) => (i >= 0 && i < r.length ? (r[i] ?? "").trim() : "");
@@ -194,6 +196,7 @@ Deno.serve(async (req: Request) => {
         campanha: get(r, col.campanha) || null,
         criativo: criativo || null,
         conjunto: get(r, col.conjunto) || null,
+        vende: get(r, col.vende) || null,
         lead_date: dateStr,
         lead_time: timeStr,
         lead_at: dateStr ? `${dateStr}T${timeStr}:00-03:00` : null,

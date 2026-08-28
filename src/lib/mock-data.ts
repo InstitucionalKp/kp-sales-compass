@@ -47,8 +47,12 @@ export type Lead = {
   /** Valor bruto da coluna MQL da planilha (SIM/NÃO). Guardado, fora do cálculo. */
   mqlFlag: boolean;
   meetingStatus: string;
+  /** "O QUE ELE VENDE" na planilha (ex.: "Vendo de 1-4 motos/mês"). */
+  vende: string;
   /** Marcado quando o lead virou venda no GoHighLevel. */
   sold: boolean;
+  /** Valor da venda (monetaryValue do GHL). 0 se não vendeu. */
+  saleValue: number;
 };
 
 export type SpendRow = {
@@ -57,6 +61,8 @@ export type SpendRow = {
   campaign: string;
   channel: Channel;
   amount: number;
+  impressions: number;
+  clicks: number;
 };
 
 export const GOALS = {
@@ -207,6 +213,14 @@ const LAST_NAMES = [
   "Rocha", "Dias", "Barbosa", "Cardoso", "Teixeira",
 ];
 const COMPANY_SUFFIX = ["Motos", "Veículos", "Auto Center", "Moto Peças", "Multimarcas", "Automóveis"];
+const VENDE = [
+  "Vendo de 1-4 motos/mês",
+  "Vendo 4-8 motos/mês",
+  "Vendo de 8-15 motos/mês",
+  "Vendo 15-25 motos/mês",
+  "Ainda não abri a loja",
+  "Vendo carros e motos",
+];
 
 function pick<T>(arr: T[], rnd: () => number): T {
   return arr[Math.floor(rnd() * arr.length)]!;
@@ -226,12 +240,17 @@ function buildSpend(): SpendRow[] {
       const base = CREATIVE_DAILY_SPEND[c.name] ?? 0;
       if (base === 0) continue;
       if (rnd() < 0.18) continue;
+      const amount = Math.round(base * (0.6 + rnd() * 0.9));
+      const cpc = 2 + rnd() * 5;
+      const clicks = Math.max(1, Math.round(amount / cpc));
       rows.push({
         date,
         creative: c.name,
         campaign: c.campaign,
         channel: c.channel,
-        amount: Math.round(base * (0.6 + rnd() * 0.9)),
+        amount,
+        clicks,
+        impressions: Math.round(clicks * (25 + rnd() * 60)),
       });
     }
   }
@@ -279,7 +298,9 @@ function buildLeads(): Lead[] {
       isMql,
       mqlFlag,
       meetingStatus,
+      vende: pick(VENDE, rnd),
       sold,
+      saleValue: sold ? 2500 + Math.round(rnd() * 14) * 500 : 0,
     });
   }
   return leads.sort((a, b) => (a.datetime < b.datetime ? -1 : 1));
@@ -300,6 +321,8 @@ export type Metrics = {
   cpmql: number;
   cpl: number;
   sold: number;
+  revenue: number;
+  roi: number; // %
 };
 
 export function computeMetrics(leads: Lead[], spend: SpendRow[]): Metrics {
@@ -310,6 +333,7 @@ export function computeMetrics(leads: Lead[], spend: SpendRow[]): Metrics {
   const gradeC = leads.filter((l) => l.grade === "C").length;
   const gradeD = leads.filter((l) => l.grade === "D").length;
   const mqls = gradeA + gradeB;
+  const revenue = leads.reduce((s, l) => s + (l.saleValue || 0), 0);
 
   return {
     investment,
@@ -323,6 +347,8 @@ export function computeMetrics(leads: Lead[], spend: SpendRow[]): Metrics {
     cpmql: mqls === 0 ? 0 : investment / mqls,
     cpl: total === 0 ? 0 : investment / total,
     sold: leads.filter((l) => l.sold).length,
+    revenue,
+    roi: investment === 0 ? 0 : ((revenue - investment) / investment) * 100,
   };
 }
 
@@ -406,14 +432,25 @@ export type CreativeStats = {
   investment: number;
   cpl: number;
   cpmql: number;
+  cpc: number;
+  cpm: number;
+  impressions: number;
+  clicks: number;
   sold: boolean;
+  saleCount: number;
+  revenue: number;
+  roi: number; // %
   leadList: Lead[];
 };
 
 export function creativeBreakdown(leads: Lead[], spend: SpendRow[]): CreativeStats[] {
-  const spendByCreative = new Map<string, number>();
+  const spendByCreative = new Map<string, { amount: number; impressions: number; clicks: number }>();
   for (const r of spend) {
-    spendByCreative.set(r.creative, (spendByCreative.get(r.creative) ?? 0) + r.amount);
+    const prev = spendByCreative.get(r.creative) ?? { amount: 0, impressions: 0, clicks: 0 };
+    prev.amount += r.amount;
+    prev.impressions += r.impressions;
+    prev.clicks += r.clicks;
+    spendByCreative.set(r.creative, prev);
   }
 
   const leadsByCreative = new Map<string, Lead[]>();
@@ -436,12 +473,14 @@ export function creativeBreakdown(leads: Lead[], spend: SpendRow[]): CreativeSta
       const gradeC = list.filter((l) => l.grade === "C").length;
       const gradeD = list.filter((l) => l.grade === "D").length;
       const mqls = gradeA + gradeB;
-      const investment = spendByCreative.get(name) ?? 0;
+      const sp = spendByCreative.get(name) ?? { amount: 0, impressions: 0, clicks: 0 };
+      const investment = sp.amount;
+      const revenue = list.reduce((s, l) => s + (l.saleValue || 0), 0);
       return {
         name,
-        campaign: meta?.campaign ?? "—",
-        adset: meta?.adset ?? "—",
-        channel: meta?.channel ?? "Meta Ads",
+        campaign: meta?.campaign ?? list[0]?.campaign ?? "—",
+        adset: meta?.adset ?? list[0]?.adset ?? "—",
+        channel: meta?.channel ?? list[0]?.channel ?? "Meta Ads",
         videoUrl: meta?.videoUrl ?? "",
         leads: list.length,
         mqls,
@@ -453,7 +492,14 @@ export function creativeBreakdown(leads: Lead[], spend: SpendRow[]): CreativeSta
         investment,
         cpl: list.length === 0 ? 0 : investment / list.length,
         cpmql: mqls === 0 ? 0 : investment / mqls,
+        cpc: sp.clicks === 0 ? 0 : investment / sp.clicks,
+        cpm: sp.impressions === 0 ? 0 : (investment / sp.impressions) * 1000,
+        impressions: sp.impressions,
+        clicks: sp.clicks,
         sold: list.some((l) => l.sold),
+        saleCount: list.filter((l) => l.sold).length,
+        revenue,
+        roi: investment === 0 ? 0 : ((revenue - investment) / investment) * 100,
         leadList: list,
       };
     })
