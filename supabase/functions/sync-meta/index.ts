@@ -1,11 +1,15 @@
-// sync-meta — puxa investimento diário por criativo do Meta Ads.
-// Secrets necessários (cadastrar no Lovable Cloud):
-//   META_ACCESS_TOKEN      — token de longa duração
-//   META_AD_ACCOUNT_IDS    — "act_123,act_456" (ou só os números, separados por vírgula)
+// sync-meta — puxa investimento diário por criativo do Meta Ads → public.meta_insights
+//
+// Secrets (cadastrar no Lovable Cloud):
+//   META_ACCESS_TOKEN    — token de longa duração com permissão ads_read
+//   META_AD_ACCOUNT_IDS  — "act_123,act_456" (aceita só os números também)
+//   META_API_VERSION     — opcional, ex "v23.0" (default abaixo)
+//   META_DATE_PRESET     — opcional, ex "last_90d" (default "last_30d")
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 import { corsHeaders, json } from "../_shared/cors.ts";
 
-const API = "https://graph.facebook.com/v21.0";
+const DEFAULT_VERSION = "v23.0";
+const DEFAULT_DATE_PRESET = "last_30d";
 
 async function sha256(input: string) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
@@ -23,6 +27,20 @@ type Insight = {
   actions?: { action_type: string; value: string }[];
 };
 
+function metaError(body: unknown, status: number): string {
+  const err = (body as { error?: Record<string, unknown> })?.error;
+  if (!err) return `Meta API HTTP ${status}: ${JSON.stringify(body).slice(0, 300)}`;
+  const parts = [
+    err["message"],
+    err["error_user_title"],
+    err["error_user_msg"],
+    err["code"] !== undefined ? `code ${err["code"]}` : null,
+    err["error_subcode"] !== undefined ? `subcode ${err["error_subcode"]}` : null,
+    err["type"] ? `(${err["type"]})` : null,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -38,6 +56,11 @@ Deno.serve(async (req: Request) => {
     message: null,
   });
 
+  const version = Deno.env.get("META_API_VERSION") || DEFAULT_VERSION;
+  const datePreset = Deno.env.get("META_DATE_PRESET") || DEFAULT_DATE_PRESET;
+  const API = `https://graph.facebook.com/${version}`;
+  const debug: Record<string, unknown> = { version, datePreset };
+
   try {
     const token = Deno.env.get("META_ACCESS_TOKEN");
     const accountsRaw = Deno.env.get("META_AD_ACCOUNT_IDS");
@@ -51,7 +74,9 @@ Deno.serve(async (req: Request) => {
       .map((a) => a.trim())
       .filter(Boolean)
       .map((a) => (a.startsWith("act_") ? a : `act_${a}`));
+    debug.accounts = accounts;
 
+    const auth = { Authorization: `Bearer ${token}` };
     const leadTypes = new Set([
       "lead",
       "onsite_conversion.lead_grouped",
@@ -61,19 +86,29 @@ Deno.serve(async (req: Request) => {
     const records: Record<string, unknown>[] = [];
 
     for (const account of accounts) {
-      let next: string | null =
-        `${API}/${account}/insights?level=ad&time_increment=1&date_preset=last_90d` +
-        `&fields=campaign_name,adset_name,ad_name,spend,impressions,clicks,actions&limit=500` +
-        `&access_token=${encodeURIComponent(token)}`;
+      const params = new URLSearchParams({
+        level: "ad",
+        time_increment: "1",
+        date_preset: datePreset,
+        fields: "campaign_name,adset_name,ad_name,spend,impressions,clicks,actions",
+        limit: "500",
+      });
+      let next: string | null = `${API}/${account}/insights?${params.toString()}`;
 
       let guard = 0;
       while (next && guard++ < 50) {
-        const res = await fetch(next);
-        const body = await res.json();
-        if (!res.ok) {
-          throw new Error(body?.error?.message ?? `Meta API HTTP ${res.status}`);
+        const res = await fetch(next, { headers: auth });
+        const raw = await res.text();
+        let body: unknown;
+        try {
+          body = JSON.parse(raw);
+        } catch {
+          throw new Error(`Resposta não-JSON do Meta (HTTP ${res.status}): ${raw.slice(0, 300)}`);
         }
-        for (const row of (body.data ?? []) as Insight[]) {
+        if (!res.ok) throw new Error(metaError(body, res.status));
+
+        const data = (body as { data?: Insight[] }).data ?? [];
+        for (const row of data) {
           const leads = (row.actions ?? [])
             .filter((a) => leadTypes.has(a.action_type))
             .reduce((s, a) => s + Number(a.value || 0), 0);
@@ -94,7 +129,7 @@ Deno.serve(async (req: Request) => {
             synced_at: new Date().toISOString(),
           });
         }
-        next = body.paging?.next ?? null;
+        next = (body as { paging?: { next?: string } }).paging?.next ?? null;
       }
     }
 
@@ -110,9 +145,9 @@ Deno.serve(async (req: Request) => {
       status: "ok",
       last_run_at: new Date().toISOString(),
       rows: records.length,
-      message: null,
+      message: `${records.length} linhas · ${datePreset} · ${version}`,
     });
-    return json({ ok: true, rows: records.length });
+    return json({ ok: true, rows: records.length, ...debug });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await supabase.from("sync_status").upsert({
@@ -121,6 +156,6 @@ Deno.serve(async (req: Request) => {
       last_run_at: new Date().toISOString(),
       message,
     });
-    return json({ ok: false, error: message }, 500);
+    return json({ ok: false, error: message, ...debug }, 500);
   }
 });
